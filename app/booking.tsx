@@ -166,7 +166,7 @@ export default function BookingScreen() {
           <Text className="text-[13px] text-white/70 font-medium">Back</Text>
         </TouchableOpacity>
         <Text className="text-[22px] font-black text-white">
-          Passenger Details
+          Passenger Detailss
         </Text>
         <Text className="text-[13px] text-white/60 mt-1">
           Complete your booking
