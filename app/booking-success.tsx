@@ -124,7 +124,7 @@ export default function BookingSuccessScreen() {
             <Ionicons name="checkmark-circle" size={48} color="#38A169" />
           </View>
           <Text className="text-[19px] font-black text-dark-text">
-            Booking Successful
+            Booking Successfull
           </Text>
           <Text className="text-[13px] text-secondary-text mt-1">
             Check your email for the ticket
