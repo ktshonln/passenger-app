@@ -1,15 +1,17 @@
 import { useProfile } from "@/hooks/use-profile";
+import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useRef } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Platform,
-    StatusBar,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Platform,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 function Avatar({
@@ -121,6 +123,9 @@ function SectionHeader({ title }: { title: string }) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile, loading, error, load } = useProfile();
+  const logout = useAuthStore((s) => s.logout);
+  const logoutAll = useAuthStore((s) => s.logoutAll);
+  const isLoading = useAuthStore((s) => s.isLoading);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
@@ -262,9 +267,39 @@ export default function ProfileScreen() {
           <SectionCard>
             <RowItem
               icon="log-out-outline"
-              label="Sign Out"
+              label={isLoading ? "Signing out…" : "Sign Out"}
               danger
-              onPress={() => {}}
+              hideChevron={isLoading}
+              onPress={() => {
+                Alert.alert("Sign Out", "Sign out of this device?", [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Sign Out",
+                    style: "destructive",
+                    onPress: () => logout(),
+                  },
+                ]);
+              }}
+            />
+            <RowItem
+              icon="phone-portrait-outline"
+              label="Sign Out All Devices"
+              danger
+              hideChevron
+              onPress={() => {
+                Alert.alert(
+                  "Sign Out Everywhere",
+                  "This will end all active sessions across every device. Continue?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Sign Out All",
+                      style: "destructive",
+                      onPress: () => logoutAll(),
+                    },
+                  ],
+                );
+              }}
             />
           </SectionCard>
         </Animated.ScrollView>

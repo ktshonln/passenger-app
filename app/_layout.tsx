@@ -1,12 +1,17 @@
-import { Stack } from "expo-router";
+import { ErrorBoundary } from "@/src/components/errors/ErrorBoundary";
+import { useAuthStore } from "@/src/store/auth.store";
+import { Redirect, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import "../global.css";
 
 export default function RootLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
   return (
-    <>
+    <ErrorBoundary>
       <Stack>
+        <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="trips" options={{ headerShown: false }} />
         <Stack.Screen name="booking" options={{ headerShown: false }} />
@@ -27,8 +32,13 @@ export default function RootLayout() {
           name="profile/language"
           options={{ headerShown: false }}
         />
+        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+        <Stack.Screen name="error/403" options={{ headerShown: false }} />
+        <Stack.Screen name="error/500" options={{ headerShown: false }} />
       </Stack>
+
+      {!isAuthenticated && <Redirect href="/auth/login" />}
       <StatusBar style="light" />
-    </>
+    </ErrorBoundary>
   );
 }
