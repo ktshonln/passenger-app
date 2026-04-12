@@ -1,5 +1,8 @@
 import { fetchTrips, Trip, TripSearchParams } from "@/lib/api";
+import { MOCK_TRIPS, mockDelay } from "@/src/services/mock.data";
 import { useCallback, useState } from "react";
+
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 export function useTrips() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -12,8 +15,17 @@ export function useTrips() {
     setError(null);
     setSearched(true);
     try {
-      const data = await fetchTrips(params);
-      setTrips(data);
+      if (USE_MOCK) {
+        await mockDelay(700);
+        // Filter mock trips by operatorId if provided
+        let results = [...MOCK_TRIPS];
+        if (params.operatorId) {
+          results = results.filter((t) => t.operatorId === params.operatorId);
+        }
+        setTrips(results);
+      } else {
+        setTrips(await fetchTrips(params));
+      }
     } catch {
       setError("Failed to load trips. Please try again.");
       setTrips([]);

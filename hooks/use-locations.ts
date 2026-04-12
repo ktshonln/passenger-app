@@ -1,8 +1,14 @@
 import { fetchLocations, Location } from "@/lib/api";
+import {
+    getMockLocationSuggestions,
+    LocationSuggestion,
+} from "@/src/services/mock.data";
 import { useEffect, useRef, useState } from "react";
 
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
+
 export function useLocations(query: string, debounceMs = 300) {
-  const [results, setResults] = useState<Location[]>([]);
+  const [results, setResults] = useState<LocationSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -20,8 +26,17 @@ export function useLocations(query: string, debounceMs = 300) {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchLocations(query);
-        setResults(data);
+        if (USE_MOCK) {
+          // Simulate network delay
+          await new Promise((r) => setTimeout(r, 250));
+          setResults(getMockLocationSuggestions(query));
+        } else {
+          const data: Location[] = await fetchLocations(query);
+          // Wrap plain Location in LocationSuggestion shape
+          setResults(
+            data.map((l) => ({ ...l, tripsToday: 0, popularDestinations: [] })),
+          );
+        }
       } catch {
         setError("Could not load suggestions");
         setResults([]);

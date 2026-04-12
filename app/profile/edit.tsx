@@ -2,6 +2,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Animated,
@@ -87,6 +88,7 @@ function Field({
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { profile, loading, load, update } = useProfile();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -108,11 +110,11 @@ export default function EditProfileScreen() {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = "Name is required";
-    if (!phone.trim()) e.phone = "Phone number is required";
-    if (!email.trim()) e.email = "Email is required";
+    if (!name.trim()) e.name = t("profile.nameRequired");
+    if (!phone.trim()) e.phone = t("profile.phoneRequired");
+    if (!email.trim()) e.email = t("profile.emailRequired");
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
-      e.email = "Enter a valid email address";
+      e.email = t("profile.invalidEmail");
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -127,7 +129,6 @@ export default function EditProfileScreen() {
       router.back();
       return;
     }
-
     setSaving(true);
     try {
       await update(payload);
@@ -145,7 +146,7 @@ export default function EditProfileScreen() {
         }),
       ]).start(() => router.back());
     } catch {
-      setErrors({ submit: "Failed to save. Please try again." });
+      setErrors({ submit: t("profile.failedToSave") });
     } finally {
       setSaving(false);
     }
@@ -157,7 +158,6 @@ export default function EditProfileScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-
       <View
         className="bg-primary px-5 pb-5"
         style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
@@ -168,11 +168,15 @@ export default function EditProfileScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">Back</Text>
+          <Text className="text-[13px] text-white/70 font-medium">
+            {t("common.back")}
+          </Text>
         </TouchableOpacity>
-        <Text className="text-[22px] font-black text-white">Edit Profile</Text>
+        <Text className="text-[22px] font-black text-white">
+          {t("profile.editProfile")}
+        </Text>
         <Text className="text-[13px] text-white/60 mt-1">
-          Update your information
+          {t("profile.updateInfo")}
         </Text>
       </View>
 
@@ -187,7 +191,6 @@ export default function EditProfileScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Avatar placeholder */}
           <View className="items-center py-5">
             <View
               style={{
@@ -214,7 +217,7 @@ export default function EditProfileScreen() {
             >
               <Ionicons name="camera-outline" size={14} color="#0A4370" />
               <Text className="text-[12px] text-primary font-semibold">
-                Change Photo
+                {t("profile.changePhoto")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -230,29 +233,29 @@ export default function EditProfileScreen() {
             }}
           >
             <Text className="text-[11px] font-black text-secondary-text tracking-widest uppercase mb-4">
-              Personal Info
+              {t("profile.personalInfo")}
             </Text>
             <Field
-              label="Full Name"
+              label={t("profile.fullName")}
               value={name}
               onChangeText={setName}
               error={errors.name}
-              placeholder="Enter your full name"
+              placeholder={t("profile.fullNamePlaceholder")}
             />
             <Field
-              label="Phone Number"
+              label={t("profile.phoneNumber")}
               value={phone}
               onChangeText={setPhone}
               error={errors.phone}
-              placeholder="+254 700 000 000"
+              placeholder={t("profile.phonePlaceholder")}
               keyboardType="phone-pad"
             />
             <Field
-              label="Email Address"
+              label={t("profile.emailAddress")}
               value={email}
               onChangeText={setEmail}
               error={errors.email}
-              placeholder="you@example.com"
+              placeholder={t("profile.emailPlaceholder")}
               keyboardType="email-address"
             />
           </View>
@@ -266,7 +269,6 @@ export default function EditProfileScreen() {
             </View>
           )}
 
-          {/* Success toast */}
           <Animated.View
             style={{
               opacity: successAnim,
@@ -276,7 +278,7 @@ export default function EditProfileScreen() {
           >
             <Ionicons name="checkmark-circle" size={16} color="#38A169" />
             <Text className="text-[13px] text-success font-semibold">
-              Profile updated successfully
+              {t("profile.profileUpdated")}
             </Text>
           </Animated.View>
 
@@ -292,7 +294,7 @@ export default function EditProfileScreen() {
               <View className="flex-row items-center gap-2">
                 <Ionicons name="checkmark-outline" size={18} color="#fff" />
                 <Text className="text-white text-[15px] font-bold">
-                  Save Changes
+                  {t("profile.saveChanges")}
                 </Text>
               </View>
             )}

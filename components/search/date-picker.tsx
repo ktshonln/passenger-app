@@ -5,6 +5,7 @@ import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 interface Props {
   label: string;
+  placeholder?: string;
   value: string;
   onChange: (date: string) => void;
   error?: string;
@@ -35,7 +36,13 @@ function toIso(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function DatePicker({ label, value, onChange, error }: Props) {
+export function DatePicker({
+  label,
+  placeholder,
+  value,
+  onChange,
+  error,
+}: Props) {
   const [open, setOpen] = useState(false);
 
   const today = new Date();
@@ -77,7 +84,7 @@ export function DatePicker({ label, value, onChange, error }: Props) {
               fontWeight: value ? "600" : "400",
             }}
           >
-            {value ? formatDisplay(value) : "Select a date"}
+            {value ? formatDisplay(value) : (placeholder ?? "Select a date")}
           </Text>
         </View>
         <View style={{ width: 17 }} />

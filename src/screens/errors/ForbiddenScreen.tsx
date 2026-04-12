@@ -1,20 +1,22 @@
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ErrorScreen } from "../../components/errors/ErrorScreen";
 
 export default function ForbiddenScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   return (
     <ErrorScreen
       testID="forbidden-screen"
       icon="lock-closed-outline"
       iconColor="#D97706"
-      badge="403"
-      title="Access Restricted"
-      subtitle="You don't have permission to view this page. This area is reserved for specific account types."
-      actionLabel="Go to Home"
+      badge={t("errors.forbiddenBadge")}
+      title={t("errors.forbiddenTitle")}
+      subtitle={t("errors.forbiddenSubtitle")}
+      actionLabel={t("errors.forbiddenAction")}
       onAction={() => router.replace("/(tabs)")}
-      secondaryLabel="Go Back"
+      secondaryLabel={t("common.back")}
       onSecondary={() => router.back()}
     />
   );

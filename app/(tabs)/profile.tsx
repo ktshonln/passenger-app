@@ -3,6 +3,7 @@ import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -122,6 +123,7 @@ function SectionHeader({ title }: { title: string }) {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { profile, loading, error, load } = useProfile();
   const logout = useAuthStore((s) => s.logout);
   const logoutAll = useAuthStore((s) => s.logoutAll);
@@ -145,12 +147,6 @@ export default function ProfileScreen() {
     router.push(path as never);
   }
 
-  const LANG_LABELS: Record<string, string> = {
-    en: "English",
-    fr: "French",
-    rw: "Kinyarwanda",
-  };
-
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
@@ -160,9 +156,11 @@ export default function ProfileScreen() {
         className="bg-primary px-5 pb-6"
         style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
       >
-        <Text className="text-[26px] font-black text-white">Profile</Text>
+        <Text className="text-[26px] font-black text-white">
+          {t("profile.title")}
+        </Text>
         <Text className="text-[13px] text-white/60 mt-1">
-          Manage your account
+          {t("profile.manageAccount")}
         </Text>
       </View>
 
@@ -191,7 +189,7 @@ export default function ProfileScreen() {
         <Animated.ScrollView
           style={{ opacity: fadeAnim }}
           className="flex-1"
-          contentContainerClassName="p-4 pb-12"
+          contentContainerStyle={{ padding: 16, paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Profile card */}
@@ -223,77 +221,84 @@ export default function ProfileScreen() {
             </View>
           </SectionCard>
 
-          {/* Account */}
-          <SectionHeader title="Account" />
+          <SectionHeader title={t("profile.account")} />
           <SectionCard>
             <RowItem
               icon="person-outline"
-              label="Edit Profile"
+              label={t("profile.editProfile")}
               onPress={() => nav("/profile/edit")}
             />
             <RowItem
               icon="lock-closed-outline"
-              label="Change Password"
+              label={t("profile.changePassword")}
               onPress={() => nav("/profile/change-password")}
             />
           </SectionCard>
 
-          {/* Preferences */}
-          <SectionHeader title="Preferences" />
+          <SectionHeader title={t("profile.preferences")} />
           <SectionCard>
             <RowItem
               icon="notifications-outline"
-              label="Notifications"
+              label={t("profile.notifications")}
               value={
                 [
-                  profile?.preferences.smsNotifications ? "SMS" : null,
-                  profile?.preferences.emailNotifications ? "Email" : null,
+                  profile?.preferences.smsNotifications
+                    ? t("profile.sms")
+                    : null,
+                  profile?.preferences.emailNotifications
+                    ? t("profile.email")
+                    : null,
                 ]
                   .filter(Boolean)
-                  .join(", ") || "Off"
+                  .join(", ") || t("common.off")
               }
               onPress={() => nav("/profile/notifications")}
             />
             <RowItem
               icon="language-outline"
-              label="Language"
-              value={LANG_LABELS[profile?.preferences.language ?? "en"]}
+              label={t("profile.language")}
+              value={t(
+                `language.${profile?.preferences.language === "rw" ? "kinyarwanda" : profile?.preferences.language === "fr" ? "french" : "english"}`,
+              )}
               onPress={() => nav("/profile/language")}
             />
           </SectionCard>
 
-          {/* Danger zone */}
-          <SectionHeader title="Account Actions" />
+          <SectionHeader title={t("profile.accountActions")} />
           <SectionCard>
             <RowItem
               icon="log-out-outline"
-              label={isLoading ? "Signing out…" : "Sign Out"}
+              label={isLoading ? t("profile.signingOut") : t("profile.signOut")}
               danger
               hideChevron={isLoading}
               onPress={() => {
-                Alert.alert("Sign Out", "Sign out of this device?", [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Sign Out",
-                    style: "destructive",
-                    onPress: () => logout(),
-                  },
-                ]);
+                Alert.alert(
+                  t("profile.signOutConfirmTitle"),
+                  t("profile.signOutConfirmMsg"),
+                  [
+                    { text: t("common.cancel"), style: "cancel" },
+                    {
+                      text: t("profile.signOut"),
+                      style: "destructive",
+                      onPress: () => logout(),
+                    },
+                  ],
+                );
               }}
             />
             <RowItem
               icon="phone-portrait-outline"
-              label="Sign Out All Devices"
+              label={t("profile.signOutAllDevices")}
               danger
               hideChevron
               onPress={() => {
                 Alert.alert(
-                  "Sign Out Everywhere",
-                  "This will end all active sessions across every device. Continue?",
+                  t("profile.signOutAllConfirmTitle"),
+                  t("profile.signOutAllConfirmMsg"),
                   [
-                    { text: "Cancel", style: "cancel" },
+                    { text: t("common.cancel"), style: "cancel" },
                     {
-                      text: "Sign Out All",
+                      text: t("profile.signOutAllBtn"),
                       style: "destructive",
                       onPress: () => logoutAll(),
                     },

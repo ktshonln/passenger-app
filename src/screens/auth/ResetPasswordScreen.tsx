@@ -2,6 +2,7 @@ import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Animated,
     Dimensions,
@@ -22,9 +23,8 @@ const { width } = Dimensions.get("window");
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
-  // Token arrives via deep link: katisha://auth/reset-password?token=<raw>
+  const { t } = useTranslation();
   const { token } = useLocalSearchParams<{ token?: string }>();
-
   const { isLoading, error, done, resetPassword, clearError } =
     useResetPassword();
 
@@ -35,13 +35,10 @@ export default function ResetPasswordScreen() {
     confirmPassword?: string;
   }>({});
 
-  // Entrance animations
   const headerScale = useRef(new Animated.Value(0.75)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const cardY = useRef(new Animated.Value(40)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
-
-  // Success animations
   const successScale = useRef(new Animated.Value(0)).current;
   const successOpacity = useRef(new Animated.Value(0)).current;
 
@@ -77,7 +74,6 @@ export default function ResetPasswordScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Animate to success state when done flips
   useEffect(() => {
     if (!done) return;
     Animated.sequence([
@@ -105,14 +101,15 @@ export default function ResetPasswordScreen() {
 
   const validate = () => {
     const errs: typeof fieldErrors = {};
-    if (!newPassword) errs.newPassword = "New password is required.";
-    else if (!isStrongPassword(newPassword))
+    if (!newPassword)
       errs.newPassword =
-        "Min 8 characters with at least 1 letter and 1 number.";
+        t("auth.newPasswordRequired") ?? "New password is required.";
+    else if (!isStrongPassword(newPassword))
+      errs.newPassword = t("auth.passwordHint");
     if (!confirmPassword)
-      errs.confirmPassword = "Please confirm your password.";
+      errs.confirmPassword = t("profile.confirmPasswordRequired");
     else if (newPassword !== confirmPassword)
-      errs.confirmPassword = "Passwords do not match.";
+      errs.confirmPassword = t("profile.passwordsDoNotMatch");
     return errs;
   };
 
@@ -125,27 +122,30 @@ export default function ResetPasswordScreen() {
     }
     setFieldErrors({});
     if (!token) {
-      // No token in URL — shouldn't happen in normal flow
-      setFieldErrors({
-        newPassword:
-          "Invalid or missing reset token. Please request a new link.",
-      });
+      setFieldErrors({ newPassword: t("auth.noTokenFound") });
       return;
     }
     await resetPassword(token, newPassword);
   };
+
+  const rules = [
+    { label: t("auth.atLeast8Chars"), ok: newPassword.length >= 8 },
+    { label: t("auth.atLeast1Letter"), ok: /[a-zA-Z]/.test(newPassword) },
+    { label: t("auth.atLeast1Number"), ok: /[0-9]/.test(newPassword) },
+    {
+      label: t("auth.passwordsMatch"),
+      ok: !!confirmPassword && newPassword === confirmPassword,
+    },
+  ];
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
-
-        {/* Back only shown on form step */}
         {!done && (
           <TouchableOpacity
             style={styles.backBtn}
@@ -156,7 +156,6 @@ export default function ResetPasswordScreen() {
             </View>
           </TouchableOpacity>
         )}
-
         <Animated.View
           style={{
             alignItems: "center",
@@ -174,12 +173,12 @@ export default function ResetPasswordScreen() {
             </View>
           </View>
           <Text style={styles.headerTitle}>
-            {done ? "All done!" : "New Password"}
+            {done ? t("auth.allDone") : t("auth.newPassword")}
           </Text>
           <Text style={styles.headerSub}>
             {done
-              ? "Your password has been updated"
-              : "Choose a strong password"}
+              ? t("auth.passwordHasBeenUpdated")
+              : t("auth.chooseStrongPassword")}
           </Text>
         </Animated.View>
       </View>
@@ -189,7 +188,6 @@ export default function ResetPasswordScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Form step ── */}
         {!done && (
           <Animated.View
             style={[
@@ -197,23 +195,16 @@ export default function ResetPasswordScreen() {
               { opacity: cardOpacity, transform: [{ translateY: cardY }] },
             ]}
           >
-            <Text style={styles.title}>Set new password</Text>
-            <Text style={styles.subtitle}>
-              Your new password must be different from your previous one.
-            </Text>
+            <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
+            <Text style={styles.subtitle}>{t("auth.newPasswordSubtitle")}</Text>
 
-            {/* Missing token warning */}
             {!token && (
               <View style={styles.warnBanner}>
                 <Ionicons name="warning-outline" size={16} color="#B45309" />
-                <Text style={styles.warnText}>
-                  No reset token found. Please use the link from your SMS or
-                  email.
-                </Text>
+                <Text style={styles.warnText}>{t("auth.noTokenFound")}</Text>
               </View>
             )}
 
-            {/* API / hook error */}
             {error ? (
               <View style={styles.errorBanner}>
                 <Ionicons
@@ -222,12 +213,13 @@ export default function ResetPasswordScreen() {
                   color={Colors.error}
                 />
                 <Text style={styles.errorBannerText}>{error}</Text>
-                {/* Expired token — offer to request a new one */}
                 {error.includes("expired") && (
                   <TouchableOpacity
                     onPress={() => router.replace("/auth/forgot-password")}
                   >
-                    <Text style={styles.errorAction}>Request new link</Text>
+                    <Text style={styles.errorAction}>
+                      {t("auth.requestNewLink")}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -235,8 +227,8 @@ export default function ResetPasswordScreen() {
 
             <View style={{ marginTop: 20 }}>
               <AuthInput
-                label="New Password"
-                placeholder="Min. 8 chars with a letter and number"
+                label={t("auth.newPassword")}
+                placeholder={t("auth.newPasswordPlaceholder")}
                 value={newPassword}
                 onChangeText={(v) => {
                   setNewPassword(v);
@@ -248,8 +240,8 @@ export default function ResetPasswordScreen() {
                 testID="reset-new-password-input"
               />
               <AuthInput
-                label="Confirm Password"
-                placeholder="Repeat your new password"
+                label={t("auth.confirmPassword")}
+                placeholder={t("auth.confirmPasswordPlaceholder")}
                 value={confirmPassword}
                 onChangeText={(v) => {
                   setConfirmPassword(v);
@@ -262,20 +254,8 @@ export default function ResetPasswordScreen() {
               />
             </View>
 
-            {/* Strength rules reminder */}
             <View style={styles.rulesBox}>
-              {[
-                { label: "At least 8 characters", ok: newPassword.length >= 8 },
-                {
-                  label: "At least 1 letter",
-                  ok: /[a-zA-Z]/.test(newPassword),
-                },
-                { label: "At least 1 number", ok: /[0-9]/.test(newPassword) },
-                {
-                  label: "Passwords match",
-                  ok: !!confirmPassword && newPassword === confirmPassword,
-                },
-              ].map((rule) => (
+              {rules.map((rule) => (
                 <View key={rule.label} style={styles.ruleRow}>
                   <Ionicons
                     name={rule.ok ? "checkmark-circle" : "ellipse-outline"}
@@ -291,7 +271,7 @@ export default function ResetPasswordScreen() {
 
             <View style={{ marginTop: 8 }}>
               <AuthButton
-                label="Update Password"
+                label={t("auth.updatePassword")}
                 onPress={handleSubmit}
                 loading={isLoading}
                 disabled={isLoading || !token}
@@ -300,7 +280,6 @@ export default function ResetPasswordScreen() {
           </Animated.View>
         )}
 
-        {/* ── Success step ── */}
         {done && (
           <Animated.View
             style={[
@@ -314,14 +293,10 @@ export default function ResetPasswordScreen() {
                 <Ionicons name="checkmark" size={36} color={Colors.white} />
               </View>
             </View>
-
-            <Text style={styles.successTitle}>Password updated</Text>
+            <Text style={styles.successTitle}>{t("auth.passwordUpdated")}</Text>
             <Text style={styles.successBody}>
-              Your password has been changed successfully.{"\n"}
-              For security, you have been signed out of all devices.
+              {t("auth.passwordUpdatedBody")}
             </Text>
-
-            {/* Security note */}
             <View style={styles.securityNote}>
               <Ionicons
                 name="shield-checkmark-outline"
@@ -329,12 +304,11 @@ export default function ResetPasswordScreen() {
                 color={Colors.primary}
               />
               <Text style={styles.securityText}>
-                All active sessions have been revoked. Please sign in again.
+                {t("auth.allSessionsRevoked")}
               </Text>
             </View>
-
             <AuthButton
-              label="Sign In"
+              label={t("auth.signInAgain")}
               onPress={() => router.replace("/auth/login")}
             />
           </Animated.View>

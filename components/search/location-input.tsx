@@ -37,20 +37,24 @@ export function LocationInput({
   React.useEffect(() => {
     Animated.timing(dropdownAnim, {
       toValue: showDropdown && results.length > 0 ? 1 : 0,
-      duration: 200,
+      duration: 180,
       useNativeDriver: true,
     }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDropdown, results.length]);
 
-  function highlightMatch(text: string, query: string) {
+  function highlight(text: string, query: string) {
     const idx = text.toLowerCase().indexOf(query.toLowerCase());
     if (idx === -1)
-      return <Text className="text-[14px] text-dark-text">{text}</Text>;
+      return (
+        <Text style={{ fontSize: 14, color: "#1A202C", fontWeight: "600" }}>
+          {text}
+        </Text>
+      );
     return (
-      <Text className="text-[14px] text-dark-text">
+      <Text style={{ fontSize: 14, color: "#1A202C", fontWeight: "600" }}>
         {text.slice(0, idx)}
-        <Text className="text-primary font-bold">
+        <Text style={{ color: "#0A4370", fontWeight: "800" }}>
           {text.slice(idx, idx + query.length)}
         </Text>
         {text.slice(idx + query.length)}
@@ -58,27 +62,35 @@ export function LocationInput({
     );
   }
 
-  function handleSelect(loc: Location) {
-    onSelect(loc);
-    setFocused(false);
-  }
-
   return (
     <View>
-      <Text className="text-[11px] font-semibold text-secondary-text mb-1.5 tracking-wider uppercase">
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          color: "#6A717D",
+          marginBottom: 6,
+          letterSpacing: 0.8,
+          textTransform: "uppercase",
+        }}
+      >
         {label}
       </Text>
+
       <View
-        className={`flex-row items-center rounded-xl px-3.5 h-[48px] ${
-          focused
-            ? "bg-primary/5 border-[1.5px] border-primary"
-            : error
-              ? "bg-red-50 border-[1.5px] border-danger"
-              : "bg-[#F8F9FB] border border-border"
-        }`}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          borderRadius: 12,
+          height: 48,
+          paddingHorizontal: 14,
+          backgroundColor: error ? "#FFF5F5" : focused ? "#EEF4FF" : "#F8F9FB",
+          borderWidth: focused ? 1.5 : 1,
+          borderColor: focused ? "#0A4370" : error ? "#E53E3E" : "#E2E8F0",
+        }}
       >
         <TextInput
-          className="flex-1 text-[15px] text-dark-text"
+          style={{ flex: 1, fontSize: 15, color: "#1A202C" }}
           placeholder={placeholder}
           placeholderTextColor="#A0A8B4"
           value={value}
@@ -92,9 +104,7 @@ export function LocationInput({
           <ActivityIndicator size="small" color="#0A4370" />
         ) : value.length > 0 ? (
           <TouchableOpacity
-            onPress={() => {
-              onChangeText("");
-            }}
+            onPress={() => onChangeText("")}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="close-circle" size={17} color="#A0A8B4" />
@@ -103,18 +113,33 @@ export function LocationInput({
           <Ionicons name="location-outline" size={17} color="#A0A8B4" />
         )}
       </View>
+
       {!!error && (
-        <View className="flex-row items-center gap-1 mt-1">
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            marginTop: 4,
+          }}
+        >
           <Ionicons name="alert-circle-outline" size={12} color="#E53E3E" />
-          <Text className="text-[11px] text-danger">{error}</Text>
+          <Text style={{ fontSize: 11, color: "#E53E3E" }}>{error}</Text>
         </View>
       )}
 
       {showDropdown && results.length > 0 && (
         <Animated.View
-          className="absolute left-0 right-0 bg-white rounded-2xl border border-border z-[999]"
           style={{
-            top: 72,
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 76,
+            backgroundColor: "#fff",
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: "#E2E8F0",
+            zIndex: 999,
             opacity: dropdownAnim,
             transform: [
               {
@@ -129,6 +154,7 @@ export function LocationInput({
             shadowOpacity: 0.12,
             shadowRadius: 20,
             elevation: 12,
+            overflow: "hidden",
           }}
         >
           <FlatList
@@ -136,27 +162,122 @@ export function LocationInput({
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
             scrollEnabled={results.length > 4}
-            style={{ maxHeight: 220 }}
+            style={{ maxHeight: 280 }}
             renderItem={({ item, index }) => (
               <TouchableOpacity
-                className={`flex-row items-center px-4 py-3 ${index === 0 ? "rounded-t-2xl" : ""}`}
-                onPress={() => handleSelect(item)}
+                onPress={() => {
+                  onSelect(item);
+                  setFocused(false);
+                }}
                 activeOpacity={0.6}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  backgroundColor: index % 2 === 0 ? "#fff" : "#FAFBFC",
+                }}
               >
-                <View className="w-8 h-8 rounded-xl bg-primary/10 items-center justify-center mr-3">
-                  <Ionicons name="location-outline" size={15} color="#0A4370" />
+                {/* Location icon */}
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    backgroundColor: "#EEF4FF",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                  }}
+                >
+                  <Ionicons name="location" size={16} color="#0A4370" />
                 </View>
-                <View className="flex-1">
-                  {highlightMatch(item.name, value)}
-                  <Text className="text-[11px] text-secondary-text mt-0.5">
-                    {item.city}
+
+                {/* Name + city */}
+                <View style={{ flex: 1 }}>
+                  {highlight(item.name, value)}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 2,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, color: "#6A717D" }}>
+                      {item.city}
+                    </Text>
+                    {/* Trip count badge */}
+                    {(item as any).tripsToday > 0 && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 3,
+                          backgroundColor: "#F0FFF4",
+                          borderRadius: 6,
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                        }}
+                      >
+                        <Ionicons
+                          name="bus-outline"
+                          size={10}
+                          color="#38A169"
+                        />
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            color: "#38A169",
+                            fontWeight: "700",
+                          }}
+                        >
+                          {(item as any).tripsToday} trips today
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {/* Popular destinations */}
+                  {(item as any).popularDestinations?.length > 0 && (
+                    <Text
+                      style={{ fontSize: 10, color: "#A0A8B4", marginTop: 2 }}
+                    >
+                      → {(item as any).popularDestinations.join(" · ")}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Station code chip */}
+                <View
+                  style={{
+                    backgroundColor: "#EEF4FF",
+                    borderRadius: 6,
+                    paddingHorizontal: 7,
+                    paddingVertical: 3,
+                    marginLeft: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "800",
+                      color: "#0A4370",
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {item.code}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={14} color="#C8CDD6" />
               </TouchableOpacity>
             )}
             ItemSeparatorComponent={() => (
-              <View className="h-px bg-border ml-[60px]" />
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: "#F0F2F5",
+                  marginLeft: 64,
+                }}
+              />
             )}
           />
         </Animated.View>

@@ -2,6 +2,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Platform,
@@ -52,6 +53,7 @@ function PrefRow({
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { profile, loading, load, update } = useProfile();
   const [sms, setSms] = useState(false);
   const [email, setEmail] = useState(false);
@@ -79,19 +81,9 @@ export default function NotificationsScreen() {
     }
   }
 
-  function handleSms(val: boolean) {
-    setSms(val);
-    save("smsNotifications", val);
-  }
-  function handleEmail(val: boolean) {
-    setEmail(val);
-    save("emailNotifications", val);
-  }
-
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-
       <View
         className="bg-primary px-5 pb-5"
         style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
@@ -102,11 +94,15 @@ export default function NotificationsScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">Back</Text>
+          <Text className="text-[13px] text-white/70 font-medium">
+            {t("common.back")}
+          </Text>
         </TouchableOpacity>
-        <Text className="text-[22px] font-black text-white">Notifications</Text>
+        <Text className="text-[22px] font-black text-white">
+          {t("profile.notificationsTitle")}
+        </Text>
         <Text className="text-[13px] text-white/60 mt-1">
-          Choose what you hear about
+          {t("profile.notificationsSubtitle")}
         </Text>
       </View>
 
@@ -132,24 +128,31 @@ export default function NotificationsScreen() {
           >
             <PrefRow
               icon="chatbubble-outline"
-              title="SMS Notifications"
-              subtitle="Ticket alerts and booking updates"
+              title={t("profile.smsNotifications")}
+              subtitle={t("profile.smsNotificationsDesc")}
               value={sms}
-              onToggle={handleSms}
+              onToggle={(v) => {
+                setSms(v);
+                save("smsNotifications", v);
+              }}
             />
             <PrefRow
               icon="mail-outline"
-              title="Email Notifications"
-              subtitle="Promotions and account updates"
+              title={t("profile.emailNotifications")}
+              subtitle={t("profile.emailNotificationsDesc")}
               value={email}
-              onToggle={handleEmail}
+              onToggle={(v) => {
+                setEmail(v);
+                save("emailNotifications", v);
+              }}
             />
           </View>
-
           {saving && (
             <View className="flex-row items-center gap-2 justify-center mt-2">
               <ActivityIndicator size="small" color="#0A4370" />
-              <Text className="text-[12px] text-secondary-text">Saving...</Text>
+              <Text className="text-[12px] text-secondary-text">
+                {t("profile.saving")}
+              </Text>
             </View>
           )}
         </ScrollView>

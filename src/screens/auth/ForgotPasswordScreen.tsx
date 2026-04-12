@@ -2,16 +2,17 @@ import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { AuthButton } from "../../components/auth/AuthButton";
 import { AuthInput } from "../../components/auth/AuthInput";
@@ -19,11 +20,11 @@ import { useForgotPassword } from "../../hooks/useForgotPassword";
 import { isValidIdentifier } from "../../utils/validation";
 
 const { width } = Dimensions.get("window");
-
 const isPhone = (v: string) => /^\+?[0-9]{9,15}$/.test(v.trim());
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { isLoading, error, sent, sendResetLink, reset } = useForgotPassword();
 
   const [identifier, setIdentifier] = useState("");
@@ -95,11 +96,13 @@ export default function ForgotPasswordScreen() {
 
   const handleSubmit = async () => {
     if (!identifier.trim()) {
-      setFieldError("Email or phone is required.");
+      setFieldError(
+        t("auth.emailOrPhone") + " " + t("common.error").toLowerCase(),
+      );
       return;
     }
     if (!isValidIdentifier(identifier.trim())) {
-      setFieldError("Enter a valid email or phone number.");
+      setFieldError(t("auth.emailOrPhonePlaceholder"));
       return;
     }
     setFieldError(undefined);
@@ -114,30 +117,23 @@ export default function ForgotPasswordScreen() {
   };
 
   const viaPhone = isPhone(identifier);
-  const channelHint = viaPhone
-    ? "Check your SMS messages for the reset code."
-    : "Check your spam folder if you don't see it within a few minutes.";
+  const channelHint = viaPhone ? t("auth.smsHint") : t("auth.emailHint");
+
   const successSteps = viaPhone
     ? [
-        {
-          icon: "phone-portrait-outline" as const,
-          text: "Open the SMS we sent you",
-        },
-        { icon: "keypad-outline" as const, text: "Enter the reset code" },
+        { icon: "phone-portrait-outline" as const, text: t("auth.smsStep1") },
+        { icon: "keypad-outline" as const, text: t("auth.smsStep2") },
         {
           icon: "lock-open-outline" as const,
-          text: "Create your new password",
+          text: t("auth.createNewPassword"),
         },
       ]
     : [
-        {
-          icon: "mail-open-outline" as const,
-          text: "Open the email we sent you",
-        },
-        { icon: "link-outline" as const, text: "Tap the reset link inside" },
+        { icon: "mail-open-outline" as const, text: t("auth.emailStep1") },
+        { icon: "link-outline" as const, text: t("auth.emailStep2") },
         {
           icon: "lock-open-outline" as const,
-          text: "Create your new password",
+          text: t("auth.createNewPassword"),
         },
       ];
 
@@ -146,7 +142,6 @@ export default function ForgotPasswordScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
@@ -168,8 +163,8 @@ export default function ForgotPasswordScreen() {
               <Ionicons name="key" size={28} color={Colors.primary} />
             </View>
           </View>
-          <Text style={styles.headerTitle}>Reset Password</Text>
-          <Text style={styles.headerSub}>We&apos;ll get you back in</Text>
+          <Text style={styles.headerTitle}>{t("auth.resetPassword")}</Text>
+          <Text style={styles.headerSub}>{t("auth.getYouBack")}</Text>
         </Animated.View>
       </View>
 
@@ -178,7 +173,6 @@ export default function ForgotPasswordScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Input step ── */}
         {!sent && (
           <Animated.View
             style={[
@@ -186,10 +180,9 @@ export default function ForgotPasswordScreen() {
               { opacity: cardOpacity, transform: [{ translateY: cardY }] },
             ]}
           >
-            <Text style={styles.title}>Forgot password?</Text>
+            <Text style={styles.title}>{t("auth.forgotPasswordTitle")}</Text>
             <Text style={styles.subtitle}>
-              Enter the email or phone linked to your account and we&apos;ll
-              send a reset link.
+              {t("auth.forgotPasswordSubtitle")}
             </Text>
 
             {error ? (
@@ -214,8 +207,8 @@ export default function ForgotPasswordScreen() {
 
             <View style={{ marginTop: 20 }}>
               <AuthInput
-                label="Email or Phone"
-                placeholder="you@example.com or +254..."
+                label={t("auth.emailOrPhone")}
+                placeholder={t("auth.emailOrPhonePlaceholder")}
                 value={identifier}
                 onChangeText={(v) => {
                   setIdentifier(v);
@@ -230,7 +223,7 @@ export default function ForgotPasswordScreen() {
 
             <View style={{ marginTop: 8 }}>
               <AuthButton
-                label="Send Reset Link"
+                label={t("auth.sendResetLink")}
                 onPress={handleSubmit}
                 loading={isLoading}
                 disabled={isLoading}
@@ -238,15 +231,16 @@ export default function ForgotPasswordScreen() {
             </View>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Remember your password? </Text>
+              <Text style={styles.footerText}>
+                {t("auth.rememberPassword")}
+              </Text>
               <TouchableOpacity onPress={() => router.push("/auth/login")}>
-                <Text style={styles.footerLink}>Sign In</Text>
+                <Text style={styles.footerLink}>{t("auth.signIn")}</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
         )}
 
-        {/* ── Success step ── */}
         {sent && (
           <Animated.View
             style={[
@@ -262,10 +256,11 @@ export default function ForgotPasswordScreen() {
             </View>
 
             <Text style={styles.successTitle}>
-              Check {viaPhone ? "your phone" : "your inbox"}
+              {viaPhone ? t("auth.checkPhone") : t("auth.checkInbox")}
             </Text>
             <Text style={styles.successBody}>
-              We sent a reset {viaPhone ? "code" : "link"} to{"\n"}
+              {viaPhone ? t("auth.sentCode") : t("auth.sentLink")}
+              {"\n"}
               <Text style={styles.successIdentifier}>{identifier}</Text>
             </Text>
 
@@ -276,7 +271,7 @@ export default function ForgotPasswordScreen() {
                 color={Colors.primary}
               />
               <Text style={styles.channelBadgeText}>
-                Delivered via {viaPhone ? "SMS" : "Email"}
+                {viaPhone ? t("auth.deliveredSms") : t("auth.deliveredEmail")}
               </Text>
             </View>
 
@@ -302,20 +297,18 @@ export default function ForgotPasswordScreen() {
                 color={Colors.secondaryText}
               />
               <Text style={styles.ttlText}>
-                {viaPhone
-                  ? "Code expires in 15 minutes."
-                  : "Link expires in 1 hour."}
+                {viaPhone ? t("auth.codeExpires15") : t("auth.linkExpires1h")}
               </Text>
             </View>
 
             <AuthButton
-              label="Back to Sign In"
+              label={t("auth.backToSignIn")}
               onPress={() => router.replace("/auth/login")}
             />
 
             <TouchableOpacity style={styles.resendRow} onPress={handleResend}>
-              <Text style={styles.resendText}>Didn&apos;t receive it? </Text>
-              <Text style={styles.resendLink}>Resend</Text>
+              <Text style={styles.resendText}>{t("auth.didntReceive")}</Text>
+              <Text style={styles.resendLink}>{t("auth.resendCode")}</Text>
             </TouchableOpacity>
           </Animated.View>
         )}

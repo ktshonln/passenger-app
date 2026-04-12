@@ -2,6 +2,7 @@ import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Animated,
     Dimensions,
@@ -25,6 +26,7 @@ const OTP_LENGTH = 6;
 
 export default function VerifyPhoneScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const {
     verifyPhone,
     isLoading,
@@ -45,7 +47,6 @@ export default function VerifyPhoneScreen() {
   const headerScale = useRef(new Animated.Value(0.75)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Entrance animation
   useEffect(() => {
     Animated.sequence([
       Animated.parallel([
@@ -75,20 +76,18 @@ export default function VerifyPhoneScreen() {
         }),
       ]),
     ]).start();
-    // Focus first box
     setTimeout(() => inputRefs.current[0]?.focus(), 500);
     return () => clearError();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Countdown timer
   useEffect(() => {
     if (secondsLeft <= 0) return;
-    const t = setInterval(
+    const timer = setInterval(
       () => setSecondsLeft((s) => Math.max(0, s - 1)),
       1000,
     );
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [secondsLeft]);
 
   const formatTime = (s: number) =>
@@ -107,9 +106,8 @@ export default function VerifyPhoneScreen() {
     e: NativeSyntheticEvent<TextInputKeyPressEventData>,
     index: number,
   ) => {
-    if (e.nativeEvent.key === "Backspace" && !digits[index] && index > 0) {
+    if (e.nativeEvent.key === "Backspace" && !digits[index] && index > 0)
       inputRefs.current[index - 1]?.focus();
-    }
   };
 
   const handleVerify = async () => {
@@ -120,7 +118,7 @@ export default function VerifyPhoneScreen() {
       return;
     }
     if (!pendingUserId) {
-      setFieldError("Session expired. Please register again.");
+      setFieldError(t("auth.sessionExpired"));
       return;
     }
     try {
@@ -131,21 +129,21 @@ export default function VerifyPhoneScreen() {
     }
   };
 
-  const handleBack = () => {
-    clearPending();
-    router.back();
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
-        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => {
+            clearPending();
+            router.back();
+          }}
+        >
           <View style={styles.backBtnInner}>
             <Ionicons name="arrow-back" size={20} color={Colors.white} />
           </View>
@@ -166,8 +164,8 @@ export default function VerifyPhoneScreen() {
               />
             </View>
           </View>
-          <Text style={styles.headerTitle}>Verify Phone</Text>
-          <Text style={styles.headerSub}>One step away</Text>
+          <Text style={styles.headerTitle}>{t("auth.verifyPhone")}</Text>
+          <Text style={styles.headerSub}>{t("auth.oneStepAway")}</Text>
         </Animated.View>
       </View>
 
@@ -182,13 +180,12 @@ export default function VerifyPhoneScreen() {
             { opacity: cardOpacity, transform: [{ translateY: cardY }] },
           ]}
         >
-          <Text style={styles.title}>Enter verification code</Text>
+          <Text style={styles.title}>{t("auth.enterCode")}</Text>
           <Text style={styles.subtitle}>
-            We sent a 6-digit code to your phone via SMS.{"\n"}
-            {__DEV__ ? "Check the console for the mock OTP." : ""}
+            {t("auth.codeSentSms")}
+            {__DEV__ ? `\n${t("auth.checkConsole")}` : ""}
           </Text>
 
-          {/* Error banner */}
           {error || fieldError ? (
             <View style={styles.errorBanner}>
               <Ionicons name="warning-outline" size={16} color={Colors.error} />
@@ -196,7 +193,6 @@ export default function VerifyPhoneScreen() {
             </View>
           ) : null}
 
-          {/* OTP boxes */}
           <View style={styles.otpRow}>
             {digits.map((digit, i) => (
               <TextInput
@@ -210,7 +206,7 @@ export default function VerifyPhoneScreen() {
                   error || fieldError ? styles.otpBoxError : null,
                 ]}
                 value={digit}
-                onChangeText={(t) => handleDigitChange(t, i)}
+                onChangeText={(text) => handleDigitChange(text, i)}
                 onKeyPress={(e) => handleKeyPress(e, i)}
                 keyboardType="number-pad"
                 maxLength={1}
@@ -220,7 +216,6 @@ export default function VerifyPhoneScreen() {
             ))}
           </View>
 
-          {/* Timer */}
           <View style={styles.timerRow}>
             {secondsLeft > 0 ? (
               <>
@@ -230,32 +225,31 @@ export default function VerifyPhoneScreen() {
                   color={Colors.secondaryText}
                 />
                 <Text style={styles.timerText}>
-                  Code expires in {formatTime(secondsLeft)}
+                  {t("auth.codeExpires")}
+                  {formatTime(secondsLeft)}
                 </Text>
               </>
             ) : (
               <Text style={[styles.timerText, { color: Colors.error }]}>
-                Code expired
+                {t("auth.codeExpired")}
               </Text>
             )}
           </View>
 
           <View style={{ marginTop: 8 }}>
             <AuthButton
-              label="Verify Phone"
+              label={t("auth.verifyBtn")}
               onPress={handleVerify}
               loading={isLoading}
               disabled={isLoading || digits.join("").length < OTP_LENGTH}
             />
           </View>
 
-          {/* Resend */}
           <View style={styles.resendRow}>
-            <Text style={styles.resendText}>Didn&apos;t receive it? </Text>
+            <Text style={styles.resendText}>{t("auth.didntReceive")}</Text>
             <TouchableOpacity
               disabled={secondsLeft > 0}
               onPress={() => {
-                // TODO: call resend-otp endpoint when available
                 setSecondsLeft(300);
                 setDigits(Array(OTP_LENGTH).fill(""));
               }}
@@ -266,7 +260,7 @@ export default function VerifyPhoneScreen() {
                   secondsLeft > 0 && { color: Colors.secondaryText },
                 ]}
               >
-                Resend code
+                {t("auth.resendCode")}
               </Text>
             </TouchableOpacity>
           </View>

@@ -3,6 +3,7 @@ import { Trip } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     FlatList,
@@ -14,8 +15,8 @@ import {
 } from "react-native";
 
 function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
+  const { t } = useTranslation();
   const lowSeats = trip.seatsAvailable <= 5;
-
   return (
     <View
       className="bg-white rounded-2xl overflow-hidden"
@@ -27,7 +28,6 @@ function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
         elevation: 4,
       }}
     >
-      {/* Operator row */}
       <View className="flex-row items-center justify-between px-4 pt-4 pb-3 border-b border-border">
         <View className="flex-row items-center gap-2">
           <View className="w-7 h-7 rounded-lg bg-overlay items-center justify-center">
@@ -43,8 +43,6 @@ function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
           </Text>
         </View>
       </View>
-
-      {/* Route */}
       <View className="flex-row items-center px-4 py-4">
         <View className="flex-1">
           <Text className="text-[22px] font-black text-dark-text leading-tight">
@@ -57,7 +55,6 @@ function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
             {trip.from.city}
           </Text>
         </View>
-
         <View className="items-center px-3 gap-1">
           <View className="flex-row items-center gap-1">
             <View className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -75,7 +72,6 @@ function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
             {trip.duration}
           </Text>
         </View>
-
         <View className="flex-1 items-end">
           <Text className="text-[22px] font-black text-dark-text leading-tight">
             {trip.arrivalTime}
@@ -88,8 +84,6 @@ function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
           </Text>
         </View>
       </View>
-
-      {/* Footer */}
       <View className="flex-row items-center justify-between px-4 pb-4 pt-3 border-t border-border">
         <View>
           <Text className="text-[18px] font-black text-primary">
@@ -105,18 +99,19 @@ function TripCard({ trip, onBook }: { trip: Trip; onBook: (t: Trip) => void }) {
               className={`text-[11px] ${lowSeats ? "text-danger font-semibold" : "text-secondary-text"}`}
             >
               {lowSeats
-                ? `Only ${trip.seatsAvailable} left`
-                : `${trip.seatsAvailable} seats`}
+                ? t("trips.seatsLeft", { count: trip.seatsAvailable })
+                : t("trips.seats", { count: trip.seatsAvailable })}
             </Text>
           </View>
         </View>
-
         <TouchableOpacity
           className="bg-primary px-5 py-2.5 rounded-xl"
           onPress={() => onBook(trip)}
           activeOpacity={0.8}
         >
-          <Text className="text-white font-bold text-[13px]">Book Now</Text>
+          <Text className="text-white font-bold text-[13px]">
+            {t("trips.bookNow")}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -137,7 +132,6 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-
 function formatDate(iso: string) {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
@@ -151,14 +145,8 @@ export default function TripsScreen() {
     date: string;
   }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { trips, loading, error, searched, search } = useTrips();
-
-  function handleBook(trip: Trip) {
-    router.push({
-      pathname: "/booking" as never,
-      params: { trip: JSON.stringify(trip) },
-    });
-  }
 
   useEffect(() => {
     if (from && to && date) search({ from, to, date });
@@ -168,8 +156,6 @@ export default function TripsScreen() {
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-
-      {/* Header */}
       <View
         className="bg-primary px-5 pb-5"
         style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
@@ -180,7 +166,9 @@ export default function TripsScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">Back</Text>
+          <Text className="text-[13px] text-white/70 font-medium">
+            {t("common.back")}
+          </Text>
         </TouchableOpacity>
         <Text className="text-[22px] font-black text-white leading-tight">
           {from} → {to}
@@ -194,7 +182,7 @@ export default function TripsScreen() {
         <View className="flex-1 items-center justify-center gap-3">
           <ActivityIndicator size="large" color="#0A4370" />
           <Text className="text-[13px] text-secondary-text">
-            Finding trips...
+            {t("trips.findingTrips")}
           </Text>
         </View>
       ) : error ? (
@@ -210,7 +198,9 @@ export default function TripsScreen() {
             onPress={() => search({ from, to, date })}
             activeOpacity={0.8}
           >
-            <Text className="text-white font-bold text-sm">Try Again</Text>
+            <Text className="text-white font-bold text-sm">
+              {t("trips.tryAgain")}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -222,7 +212,12 @@ export default function TripsScreen() {
           ListHeaderComponent={
             searched && trips.length > 0 ? (
               <Text className="text-[12px] text-secondary-text font-semibold mb-3 ml-0.5">
-                {trips.length} trip{trips.length > 1 ? "s" : ""} available
+                {t(
+                  trips.length === 1
+                    ? "trips.tripAvailable"
+                    : "trips.tripsAvailable",
+                  { count: trips.length },
+                )}
               </Text>
             ) : null
           }
@@ -233,10 +228,10 @@ export default function TripsScreen() {
                   <Ionicons name="bus-outline" size={32} color="#0A4370" />
                 </View>
                 <Text className="text-[17px] font-bold text-dark-text">
-                  No trips found
+                  {t("trips.noTripsFound")}
                 </Text>
                 <Text className="text-[13px] text-secondary-text text-center">
-                  Try a different date or route
+                  {t("trips.tryDifferent")}
                 </Text>
                 <TouchableOpacity
                   className="bg-primary px-7 py-3 rounded-xl mt-1"
@@ -244,14 +239,22 @@ export default function TripsScreen() {
                   activeOpacity={0.8}
                 >
                   <Text className="text-white font-bold text-sm">
-                    Modify Search
+                    {t("trips.modifySearch")}
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : null
           }
           renderItem={({ item }) => (
-            <TripCard trip={item} onBook={handleBook} />
+            <TripCard
+              trip={item}
+              onBook={(trip) =>
+                router.push({
+                  pathname: "/booking" as never,
+                  params: { trip: JSON.stringify(trip) },
+                })
+              }
+            />
           )}
           ItemSeparatorComponent={() => <View className="h-3" />}
         />

@@ -43,6 +43,7 @@ interface AuthState {
   logoutAll: () => Promise<void>;
   clearError: () => void;
   clearPending: () => void;
+  verifyPassword: (password: string) => Promise<boolean>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -192,6 +193,27 @@ export const useAuthStore = create<AuthState>()(
 
       clearError: () => set({ error: null }),
       clearPending: () => set({ pendingUserId: null, otpExpiresIn: null }),
+
+      verifyPassword: async (password: string) => {
+        const { user } = get();
+        if (!user) return false;
+        // In mock mode, accept the demo password
+        if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { DEMO_CREDENTIALS } = require("../services/mock.data");
+          return password === DEMO_CREDENTIALS.password;
+        }
+        // Real mode: re-authenticate with stored identifier
+        try {
+          await loginRequest({
+            identifier: user.email ?? user.phone_number,
+            password,
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      },
     }),
     {
       name: "katisha-auth",

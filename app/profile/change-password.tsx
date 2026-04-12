@@ -2,6 +2,7 @@ import { changePassword } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Animated,
@@ -94,6 +95,7 @@ function PasswordField({
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -103,11 +105,11 @@ export default function ChangePasswordScreen() {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!current.trim()) e.current = "Current password is required";
-    if (!next.trim()) e.next = "New password is required";
-    else if (next.length < 8) e.next = "Password must be at least 8 characters";
-    if (!confirm.trim()) e.confirm = "Please confirm your new password";
-    else if (next !== confirm) e.confirm = "Passwords do not match";
+    if (!current.trim()) e.current = t("profile.currentPasswordRequired");
+    if (!next.trim()) e.next = t("profile.newPasswordRequired");
+    else if (next.length < 8) e.next = t("profile.passwordMin8");
+    if (!confirm.trim()) e.confirm = t("profile.confirmPasswordRequired");
+    else if (next !== confirm) e.confirm = t("profile.passwordsDoNotMatch");
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -117,7 +119,6 @@ export default function ChangePasswordScreen() {
     setLoading(true);
     try {
       await changePassword({ current_password: current, new_password: next });
-      // Clear fields
       setCurrent("");
       setNext("");
       setConfirm("");
@@ -136,8 +137,9 @@ export default function ChangePasswordScreen() {
         }),
       ]).start(() => router.back());
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to change password";
-      setErrors({ submit: msg });
+      setErrors({
+        submit: e instanceof Error ? e.message : t("common.unknownError"),
+      });
     } finally {
       setLoading(false);
     }
@@ -149,7 +151,6 @@ export default function ChangePasswordScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-
       <View
         className="bg-primary px-5 pb-5"
         style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
@@ -160,13 +161,15 @@ export default function ChangePasswordScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">Back</Text>
+          <Text className="text-[13px] text-white/70 font-medium">
+            {t("common.back")}
+          </Text>
         </TouchableOpacity>
         <Text className="text-[22px] font-black text-white">
-          Change Password
+          {t("profile.changePasswordTitle")}
         </Text>
         <Text className="text-[13px] text-white/60 mt-1">
-          Keep your account secure
+          {t("profile.keepAccountSecure")}
         </Text>
       </View>
 
@@ -193,29 +196,29 @@ export default function ChangePasswordScreen() {
               color="#0A4370"
             />
             <Text className="text-[12px] text-primary flex-1">
-              Use a strong password with letters, numbers and symbols.
+              {t("profile.strongPasswordTip")}
             </Text>
           </View>
           <PasswordField
-            label="Current Password"
+            label={t("profile.currentPassword")}
             value={current}
             onChangeText={setCurrent}
             error={errors.current}
-            placeholder="Enter current password"
+            placeholder={t("profile.currentPasswordPlaceholder")}
           />
           <PasswordField
-            label="New Password"
+            label={t("profile.newPasswordLabel")}
             value={next}
             onChangeText={setNext}
             error={errors.next}
-            placeholder="At least 8 characters"
+            placeholder={t("profile.newPasswordPlaceholder")}
           />
           <PasswordField
-            label="Confirm New Password"
+            label={t("profile.confirmNewPassword")}
             value={confirm}
             onChangeText={setConfirm}
             error={errors.confirm}
-            placeholder="Repeat new password"
+            placeholder={t("profile.confirmNewPasswordPlaceholder")}
           />
         </View>
 
@@ -234,7 +237,7 @@ export default function ChangePasswordScreen() {
         >
           <Ionicons name="checkmark-circle" size={16} color="#38A169" />
           <Text className="text-[13px] text-success font-semibold">
-            Password changed successfully
+            {t("profile.passwordChangedSuccess")}
           </Text>
         </Animated.View>
 
@@ -250,7 +253,7 @@ export default function ChangePasswordScreen() {
             <View className="flex-row items-center gap-2">
               <Ionicons name="lock-closed-outline" size={17} color="#fff" />
               <Text className="text-white text-[15px] font-bold">
-                Update Password
+                {t("profile.updatePasswordBtn")}
               </Text>
             </View>
           )}

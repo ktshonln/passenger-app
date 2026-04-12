@@ -1,12 +1,13 @@
 import { Location } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Animated,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { DatePicker } from "./date-picker";
 import { LocationInput } from "./location-input";
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function SearchCard({ onSearch, loading }: Props) {
+  const { t } = useTranslation();
   const [from, setFrom] = useState("");
   const [fromLocation, setFromLocation] = useState<Location | null>(null);
   const [to, setTo] = useState("");
@@ -35,15 +37,15 @@ export function SearchCard({ onSearch, loading }: Props) {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!from.trim()) e.from = "Enter a departure location";
-    if (!to.trim()) e.to = "Enter a destination";
-    if (!date) e.date = "Select a travel date";
+    if (!from.trim()) e.from = t("home.errorFrom");
+    if (!to.trim()) e.to = t("home.errorTo");
+    if (!date) e.date = t("home.errorDate");
     if (
       from.trim() &&
       to.trim() &&
       from.trim().toLowerCase() === to.trim().toLowerCase()
     )
-      e.to = "Destination must differ from departure";
+      e.to = t("home.errorSameLocation");
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -90,7 +92,7 @@ export function SearchCard({ onSearch, loading }: Props) {
       {/* Route section */}
       <View className="px-5 pt-5 pb-4">
         <Text className="text-[11px] font-bold text-secondary-text tracking-widest uppercase mb-4">
-          Plan your journey
+          {t("home.planJourney")}
         </Text>
 
         <View className="flex-row gap-3">
@@ -104,11 +106,11 @@ export function SearchCard({ onSearch, loading }: Props) {
           {/* Inputs */}
           <View className="flex-1 gap-3">
             <LocationInput
-              label="From"
-              placeholder="Departure city or station"
+              label={t("home.from")}
+              placeholder={t("home.departurePlaceholder")}
               value={from}
-              onChangeText={(t) => {
-                setFrom(t);
+              onChangeText={(text) => {
+                setFrom(text);
                 setFromLocation(null);
                 setErrors((e) => ({ ...e, from: "" }));
               }}
@@ -120,11 +122,11 @@ export function SearchCard({ onSearch, loading }: Props) {
               error={errors.from}
             />
             <LocationInput
-              label="To"
-              placeholder="Destination city or station"
+              label={t("home.to")}
+              placeholder={t("home.destinationPlaceholder")}
               value={to}
-              onChangeText={(t) => {
-                setTo(t);
+              onChangeText={(text) => {
+                setTo(text);
                 setToLocation(null);
                 setErrors((e) => ({ ...e, to: "" }));
               }}
@@ -154,7 +156,8 @@ export function SearchCard({ onSearch, loading }: Props) {
       {/* Date section */}
       <View className="px-5 py-4">
         <DatePicker
-          label="Travel Date"
+          label={t("home.travelDate")}
+          placeholder={t("home.selectDate")}
           value={date}
           onChange={(d) => {
             setDate(d);
@@ -181,7 +184,7 @@ export function SearchCard({ onSearch, loading }: Props) {
               <View className="flex-row items-center gap-2.5">
                 <Ionicons name="search" size={19} color="#fff" />
                 <Text className="text-white text-[16px] font-bold tracking-wide">
-                  Search Buses
+                  {t("home.searchBuses")}
                 </Text>
               </View>
             )}

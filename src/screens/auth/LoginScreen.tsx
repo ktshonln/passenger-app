@@ -1,17 +1,19 @@
 import { Colors } from "@/constants/colors";
+import { DEMO_CREDENTIALS } from "@/src/services/mock.data";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { AuthButton } from "../../components/auth/AuthButton";
 import { AuthInput } from "../../components/auth/AuthInput";
@@ -22,6 +24,7 @@ const { width } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { login, isLoading, error, clearError } = useAuth();
 
   const [identifier, setIdentifier] = useState("");
@@ -65,10 +68,17 @@ export default function LoginScreen() {
         }),
       ]),
     ]).start();
-
     return () => clearError();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const isMock = process.env.EXPO_PUBLIC_USE_MOCK === "true";
+
+  const fillDemo = () => {
+    setIdentifier(DEMO_CREDENTIALS.identifier);
+    setPassword(DEMO_CREDENTIALS.password);
+    setFieldErrors({});
+  };
 
   const handleLogin = async () => {
     const errors = validateLogin(identifier, password);
@@ -90,12 +100,9 @@ export default function LoginScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ── Decorative header ── */}
       <View style={styles.header}>
-        {/* Background circles */}
         <View style={styles.circle1} />
         <View style={styles.circle2} />
-
         <Animated.View
           style={{
             alignItems: "center",
@@ -103,18 +110,16 @@ export default function LoginScreen() {
             opacity: logoOpacity,
           }}
         >
-          {/* Logo mark */}
           <View style={styles.logoRing}>
             <View style={styles.logoInner}>
               <Ionicons name="bus" size={30} color={Colors.primary} />
             </View>
           </View>
-          <Text style={styles.brandName}>Katisha</Text>
-          <Text style={styles.brandTagline}>Your journey starts here</Text>
+          <Text style={styles.brandName}>{t("common.appName")}</Text>
+          <Text style={styles.brandTagline}>{t("auth.tagline")}</Text>
         </Animated.View>
       </View>
 
-      {/* ── Form card ── */}
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -126,10 +131,9 @@ export default function LoginScreen() {
             { opacity: cardOpacity, transform: [{ translateY: cardY }] },
           ]}
         >
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to continue</Text>
+          <Text style={styles.title}>{t("auth.welcomeBack")}</Text>
+          <Text style={styles.subtitle}>{t("auth.signInToContinue")}</Text>
 
-          {/* Error banner */}
           {error ? (
             <View style={styles.errorBanner}>
               <Ionicons name="warning-outline" size={16} color={Colors.error} />
@@ -139,8 +143,8 @@ export default function LoginScreen() {
 
           <View style={{ marginTop: 20 }}>
             <AuthInput
-              label="Email or Phone"
-              placeholder="you@example.com or +254..."
+              label={t("auth.emailOrPhone")}
+              placeholder={t("auth.emailOrPhonePlaceholder")}
               value={identifier}
               onChangeText={setIdentifier}
               error={fieldErrors.identifier}
@@ -149,8 +153,8 @@ export default function LoginScreen() {
               testID="login-identifier-input"
             />
             <AuthInput
-              label="Password"
-              placeholder="Enter your password"
+              label={t("auth.password")}
+              placeholder={t("auth.passwordPlaceholder")}
               value={password}
               onChangeText={setPassword}
               error={fieldErrors.password}
@@ -164,27 +168,47 @@ export default function LoginScreen() {
             style={styles.forgotRow}
             onPress={() => router.push("/auth/forgot-password")}
           >
-            <Text style={styles.forgotText}>Forgot password?</Text>
+            <Text style={styles.forgotText}>{t("auth.forgotPassword")}</Text>
           </TouchableOpacity>
 
+          {isMock && (
+            <TouchableOpacity
+              style={styles.demoBanner}
+              onPress={fillDemo}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="flask-outline" size={15} color="#92400e" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.demoTitle}>Demo mode — tap to fill</Text>
+                <Text style={styles.demoCredentials}>
+                  {DEMO_CREDENTIALS.identifier} · {DEMO_CREDENTIALS.password}
+                </Text>
+              </View>
+              <Ionicons
+                name="arrow-forward-circle-outline"
+                size={18}
+                color="#92400e"
+              />
+            </TouchableOpacity>
+          )}
+
           <AuthButton
-            label="Sign In"
+            label={t("auth.signIn")}
             onPress={handleLogin}
             loading={isLoading}
             disabled={isLoading}
           />
 
-          {/* Divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
+            <Text style={styles.dividerText}>{t("common.or")}</Text>
             <View style={styles.dividerLine} />
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don&apos;t have an account? </Text>
+            <Text style={styles.footerText}>{t("auth.noAccount")}</Text>
             <TouchableOpacity onPress={() => router.push("/auth/register")}>
-              <Text style={styles.footerLink}>Sign Up</Text>
+              <Text style={styles.footerLink}>{t("auth.signUp")}</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -195,7 +219,6 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.primary },
-  // ── Header ──
   header: {
     height: 260,
     alignItems: "center",
@@ -243,12 +266,7 @@ const styles = StyleSheet.create({
     color: Colors.white,
     letterSpacing: 0.5,
   },
-  brandTagline: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.65)",
-    marginTop: 4,
-  },
-  // ── Card ──
+  brandTagline: { fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 4 },
   scroll: { flexGrow: 1 },
   card: {
     flex: 1,
@@ -266,12 +284,7 @@ const styles = StyleSheet.create({
     color: Colors.darkText,
     letterSpacing: 0.2,
   },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.secondaryText,
-    marginTop: 4,
-  },
-  // ── Error ──
+  subtitle: { fontSize: 14, color: Colors.secondaryText, marginTop: 4 },
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -285,10 +298,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorBannerText: { flex: 1, fontSize: 13, color: Colors.error },
-  // ── Forgot ──
   forgotRow: { alignSelf: "flex-end", marginBottom: 20, marginTop: 4 },
   forgotText: { fontSize: 13, color: Colors.primary, fontWeight: "600" },
-  // ── Divider ──
   divider: { flexDirection: "row", alignItems: "center", marginVertical: 22 },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   dividerText: {
@@ -296,7 +307,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.secondaryText,
   },
-  // ── Footer ──
   footer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -304,4 +314,18 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: 14, color: Colors.secondaryText },
   footerLink: { fontSize: 14, color: Colors.primary, fontWeight: "700" },
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 16,
+  },
+  demoTitle: { fontSize: 12, fontWeight: "700", color: "#92400e" },
+  demoCredentials: { fontSize: 11, color: "#b45309", marginTop: 1 },
 });

@@ -1,4 +1,5 @@
 import { ErrorBoundary } from "@/src/components/errors/ErrorBoundary";
+import "@/src/i18n"; // bootstrap i18n — must be imported before any screen
 import { useAuthStore } from "@/src/store/auth.store";
 import { Redirect, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";

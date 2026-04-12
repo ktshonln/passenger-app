@@ -3,6 +3,7 @@ import { Booking } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Animated,
     Platform,
@@ -52,6 +53,7 @@ function SectionCard({
 
 export default function BookingSuccessScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ booking: string }>();
   const booking: Booking = JSON.parse(params.booking ?? "{}");
   const { addBooking } = useBookings();
@@ -96,17 +98,15 @@ export default function BookingSuccessScreen() {
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-
-      {/* Header */}
       <View
         className="bg-primary px-5 pb-5"
         style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
       >
         <Text className="text-[22px] font-black text-white">
-          Booking Confirmed
+          {t("bookingSuccess.confirmed")}
         </Text>
         <Text className="text-[13px] text-white/60 mt-1">
-          Your seat is secured
+          {t("bookingSuccess.seatSecured")}
         </Text>
       </View>
 
@@ -115,7 +115,6 @@ export default function BookingSuccessScreen() {
         contentContainerClassName="p-4 pb-10"
         showsVerticalScrollIndicator={false}
       >
-        {/* Success icon */}
         <Animated.View
           className="items-center py-5"
           style={{ transform: [{ scale: scaleAnim }] }}
@@ -124,20 +123,16 @@ export default function BookingSuccessScreen() {
             <Ionicons name="checkmark-circle" size={48} color="#38A169" />
           </View>
           <Text className="text-[19px] font-black text-dark-text">
-            Booking Successfull
+            {t("bookingSuccess.bookingSuccessful")}
           </Text>
           <Text className="text-[13px] text-secondary-text mt-1">
-            Check your email for the ticket
+            {t("bookingSuccess.checkEmail")}
           </Text>
         </Animated.View>
 
         <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          }}
+          style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
         >
-          {/* Booking ref — ticket card */}
           <View
             className="bg-primary rounded-2xl p-5 mb-3 items-center"
             style={{
@@ -149,7 +144,7 @@ export default function BookingSuccessScreen() {
             }}
           >
             <Text className="text-[11px] font-bold text-white/50 tracking-widest uppercase mb-1">
-              Booking Reference
+              {t("bookingSuccess.bookingRef")}
             </Text>
             <Text className="text-[32px] font-black text-white tracking-[6px]">
               {booking.bookingRef}
@@ -161,13 +156,12 @@ export default function BookingSuccessScreen() {
                 color="rgba(255,255,255,0.8)"
               />
               <Text className="text-[12px] text-white/80 font-semibold">
-                Seat {booking.seatNumber}
+                {t("booking.seat")} {booking.seatNumber}
               </Text>
             </View>
           </View>
 
-          {/* Trip details */}
-          <SectionCard title="Trip Details">
+          <SectionCard title={t("bookingSuccess.tripDetails")}>
             <View className="flex-row items-center py-3">
               <View className="flex-1">
                 <Text className="text-[22px] font-black text-dark-text leading-tight">
@@ -193,36 +187,53 @@ export default function BookingSuccessScreen() {
               </View>
             </View>
             <View className="h-px bg-border mb-1" />
-            <InfoRow label="Operator" value={booking.trip?.operator ?? ""} />
-            <InfoRow label="Bus Type" value={booking.trip?.busType ?? ""} />
-            <InfoRow label="Date Booked" value={formatDate(booking.bookedAt)} />
-          </SectionCard>
-
-          {/* Passenger */}
-          <SectionCard title="Passenger">
-            <InfoRow label="Name" value={booking.passenger?.fullName ?? ""} />
-            <InfoRow label="Phone" value={booking.passenger?.phone ?? ""} />
-            <InfoRow label="Email" value={booking.passenger?.email ?? ""} />
-          </SectionCard>
-
-          {/* Payment */}
-          <SectionCard title="Payment">
             <InfoRow
-              label="Amount Paid"
+              label={t("booking.operator")}
+              value={booking.trip?.operator ?? ""}
+            />
+            <InfoRow
+              label={t("booking.busType")}
+              value={booking.trip?.busType ?? ""}
+            />
+            <InfoRow
+              label={t("booking.dateBooked")}
+              value={formatDate(booking.bookedAt)}
+            />
+          </SectionCard>
+
+          <SectionCard title={t("bookingSuccess.passenger")}>
+            <InfoRow
+              label={t("booking.name")}
+              value={booking.passenger?.fullName ?? ""}
+            />
+            <InfoRow
+              label={t("booking.phone")}
+              value={booking.passenger?.phone ?? ""}
+            />
+            <InfoRow
+              label={t("booking.email")}
+              value={booking.passenger?.email ?? ""}
+            />
+          </SectionCard>
+
+          <SectionCard title={t("bookingSuccess.payment")}>
+            <InfoRow
+              label={t("bookingSuccess.amountPaid")}
               value={`${booking.currency} ${booking.totalPaid?.toLocaleString()}`}
             />
             <View className="flex-row justify-between items-center py-2.5">
-              <Text className="text-[13px] text-secondary-text">Status</Text>
+              <Text className="text-[13px] text-secondary-text">
+                {t("bookingSuccess.status")}
+              </Text>
               <View className="flex-row items-center gap-1.5 bg-green-50 px-2.5 py-1 rounded-full">
                 <Ionicons name="checkmark-circle" size={12} color="#38A169" />
                 <Text className="text-[11px] font-bold text-success">
-                  Confirmed
+                  {t("booking.statusConfirmed")}
                 </Text>
               </View>
             </View>
           </SectionCard>
 
-          {/* Actions */}
           <TouchableOpacity
             className="bg-primary rounded-2xl h-[54px] items-center justify-center mb-3"
             onPress={() => router.replace("/" as never)}
@@ -231,20 +242,20 @@ export default function BookingSuccessScreen() {
             <View className="flex-row items-center gap-2">
               <Ionicons name="search-outline" size={17} color="#FFFFFF" />
               <Text className="text-white text-[15px] font-bold">
-                Book Another Trip
+                {t("bookingSuccess.bookAnother")}
               </Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             className="border border-primary rounded-2xl h-[54px] items-center justify-center"
-            onPress={() => router.replace("/(tabs)/explore" as never)}
+            onPress={() => router.replace("/(tabs)/trips" as never)}
             activeOpacity={0.85}
           >
             <View className="flex-row items-center gap-2">
               <Ionicons name="ticket-outline" size={17} color="#0A4370" />
               <Text className="text-primary text-[15px] font-bold">
-                View My Trips
+                {t("bookingSuccess.viewMyTrips")}
               </Text>
             </View>
           </TouchableOpacity>

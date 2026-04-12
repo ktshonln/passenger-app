@@ -1,35 +1,40 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Animated, Text, View } from "react-native";
 
-const STEPS: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  desc: string;
-  step: string;
-}[] = [
-  {
-    icon: "search-outline",
-    title: "Search",
-    desc: "Enter your route and travel date",
-    step: "01",
-  },
-  {
-    icon: "ticket-outline",
-    title: "Book",
-    desc: "Pick a trip and secure your seat",
-    step: "02",
-  },
-  {
-    icon: "bus-outline",
-    title: "Board",
-    desc: "Show your ticket and hop on",
-    step: "03",
-  },
+const STEP_ICONS: (keyof typeof Ionicons.glyphMap)[] = [
+  "search-outline",
+  "ticket-outline",
+  "bus-outline",
 ];
+const STEP_NUMBERS = ["01", "02", "03"];
 
 export function HowItWorks() {
-  const anims = useRef(STEPS.map(() => new Animated.Value(0))).current;
+  const { t } = useTranslation();
+
+  const steps = [
+    {
+      icon: STEP_ICONS[0],
+      title: t("home.stepSearchTitle"),
+      desc: t("home.stepSearchDesc"),
+      step: STEP_NUMBERS[0],
+    },
+    {
+      icon: STEP_ICONS[1],
+      title: t("home.stepBookTitle"),
+      desc: t("home.stepBookDesc"),
+      step: STEP_NUMBERS[1],
+    },
+    {
+      icon: STEP_ICONS[2],
+      title: t("home.stepBoardTitle"),
+      desc: t("home.stepBoardDesc"),
+      step: STEP_NUMBERS[2],
+    },
+  ];
+
+  const anims = useRef(steps.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     Animated.stagger(
@@ -50,15 +55,15 @@ export function HowItWorks() {
       <View className="flex-row items-center gap-2 mb-4">
         <View className="flex-1 h-px bg-border" />
         <Text className="text-[11px] font-bold text-secondary-text tracking-widest uppercase">
-          How it works
+          {t("home.howItWorks")}
         </Text>
         <View className="flex-1 h-px bg-border" />
       </View>
 
       <View className="flex-row gap-3">
-        {STEPS.map((step, i) => (
+        {steps.map((step, i) => (
           <Animated.View
-            key={step.title}
+            key={step.step}
             className="flex-1 bg-white rounded-2xl p-3.5 items-center"
             style={{
               opacity: anims[i],

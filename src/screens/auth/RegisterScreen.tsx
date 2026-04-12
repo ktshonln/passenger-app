@@ -2,6 +2,7 @@ import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Animated,
     Dimensions,
@@ -22,6 +23,7 @@ const { width } = Dimensions.get("window");
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { register, isLoading, error, clearError } = useAuth();
 
   const [firstName, setFirstName] = useState("");
@@ -96,7 +98,6 @@ export default function RegisterScreen() {
         password,
         email: email.trim() || undefined,
       });
-      // register() sets pendingUserId in store → navigate to OTP screen
       router.push("/auth/verify-phone");
     } catch {
       /* error lives in store */
@@ -108,7 +109,6 @@ export default function RegisterScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
@@ -125,12 +125,11 @@ export default function RegisterScreen() {
               <Ionicons name="person-add" size={28} color={Colors.primary} />
             </View>
           </View>
-          <Text style={styles.brandName}>Join Katisha</Text>
-          <Text style={styles.brandTagline}>Book trips across East Africa</Text>
+          <Text style={styles.brandName}>{t("auth.joinTitle")}</Text>
+          <Text style={styles.brandTagline}>{t("auth.joinTagline")}</Text>
         </Animated.View>
       </View>
 
-      {/* ── Form card ── */}
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -142,10 +141,8 @@ export default function RegisterScreen() {
             { opacity: cardOpacity, transform: [{ translateY: cardY }] },
           ]}
         >
-          <Text style={styles.title}>Create account</Text>
-          <Text style={styles.subtitle}>
-            Fill in your details to get started
-          </Text>
+          <Text style={styles.title}>{t("auth.createAccount")}</Text>
+          <Text style={styles.subtitle}>{t("auth.fillDetails")}</Text>
 
           {error ? (
             <View style={styles.errorBanner}>
@@ -155,12 +152,11 @@ export default function RegisterScreen() {
           ) : null}
 
           <View style={{ marginTop: 20 }}>
-            {/* Name row */}
             <View style={styles.row}>
               <View style={styles.half}>
                 <AuthInput
-                  label="First Name"
-                  placeholder="Jane"
+                  label={t("auth.firstName")}
+                  placeholder={t("auth.firstNamePlaceholder")}
                   value={firstName}
                   onChangeText={setFirstName}
                   error={fieldErrors.first_name}
@@ -171,8 +167,8 @@ export default function RegisterScreen() {
               </View>
               <View style={styles.half}>
                 <AuthInput
-                  label="Last Name"
-                  placeholder="Doe"
+                  label={t("auth.lastName")}
+                  placeholder={t("auth.lastNamePlaceholder")}
                   value={lastName}
                   onChangeText={setLastName}
                   error={fieldErrors.last_name}
@@ -181,10 +177,9 @@ export default function RegisterScreen() {
                 />
               </View>
             </View>
-
             <AuthInput
-              label="Phone Number"
-              placeholder="+250788000000"
+              label={t("auth.phoneNumber")}
+              placeholder={t("auth.phonePlaceholder")}
               value={phone}
               onChangeText={setPhone}
               error={fieldErrors.phone_number}
@@ -192,10 +187,9 @@ export default function RegisterScreen() {
               icon="call-outline"
               testID="register-phone-input"
             />
-
             <AuthInput
-              label="Email (optional)"
-              placeholder="you@example.com"
+              label={t("auth.emailOptional")}
+              placeholder={t("auth.emailPlaceholder")}
               value={email}
               onChangeText={setEmail}
               error={fieldErrors.email}
@@ -203,10 +197,9 @@ export default function RegisterScreen() {
               icon="mail-outline"
               testID="register-email-input"
             />
-
             <AuthInput
-              label="Password"
-              placeholder="Min. 8 chars with a letter and number"
+              label={t("auth.password")}
+              placeholder={t("auth.newPasswordPlaceholder")}
               value={password}
               onChangeText={setPassword}
               error={fieldErrors.password}
@@ -216,21 +209,18 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* Password strength hint */}
           <View style={styles.hint}>
             <Ionicons
               name="shield-checkmark-outline"
               size={14}
               color={Colors.secondaryText}
             />
-            <Text style={styles.hintText}>
-              Min 8 characters · at least 1 letter + 1 number
-            </Text>
+            <Text style={styles.hintText}>{t("auth.passwordHint")}</Text>
           </View>
 
           <View style={{ marginTop: 12 }}>
             <AuthButton
-              label="Continue"
+              label={t("auth.continueBtn")}
               onPress={handleRegister}
               loading={isLoading}
               disabled={isLoading}
@@ -238,21 +228,24 @@ export default function RegisterScreen() {
           </View>
 
           <Text style={styles.terms}>
-            By continuing you agree to our{" "}
-            <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
-            <Text style={styles.termsLink}>Privacy Policy</Text>
+            {t("auth.termsText")}
+            <Text style={styles.termsLink}>{t("auth.termsLink")}</Text>
+            {t("auth.andText")}
+            <Text style={styles.termsLink}>{t("auth.privacyLink")}</Text>
           </Text>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
+            <Text style={styles.dividerText}>{t("common.or")}</Text>
             <View style={styles.dividerLine} />
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={styles.footerText}>
+              {t("auth.alreadyHaveAccount")}
+            </Text>
             <TouchableOpacity onPress={() => router.push("/auth/login")}>
-              <Text style={styles.footerLink}>Sign In</Text>
+              <Text style={styles.footerLink}>{t("auth.signIn")}</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

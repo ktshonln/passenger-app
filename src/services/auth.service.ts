@@ -1,5 +1,9 @@
+import { DEMO_AUTH_RESPONSE, DEMO_CREDENTIALS, mockDelay } from "./mock.data";
+
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.katisha.app";
+
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 // ─── Shared headers ───────────────────────────────────────────────────────────
 
@@ -116,6 +120,17 @@ function parseError(status: number): string {
 export async function loginRequest(
   payload: LoginPayload,
 ): Promise<AuthResponse> {
+  if (USE_MOCK) {
+    await mockDelay();
+    if (
+      payload.identifier === DEMO_CREDENTIALS.identifier &&
+      payload.password === DEMO_CREDENTIALS.password
+    ) {
+      return DEMO_AUTH_RESPONSE;
+    }
+    throw new Error("Invalid credentials. Use the demo account to explore.");
+  }
+
   const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
     method: "POST",
     headers: MOBILE_HEADERS,
@@ -241,6 +256,19 @@ export async function resetPasswordRequest(
 export async function refreshRequest(
   refreshToken: string,
 ): Promise<RefreshResponse> {
+  if (USE_MOCK) {
+    await mockDelay(400);
+    if (refreshToken === "mock_refresh_token_dev") {
+      return {
+        access_token: "mock_access_token_dev",
+        refresh_token: "mock_refresh_token_dev",
+        token_type: "Bearer",
+        expires_in: 900,
+      };
+    }
+    throw new Error("Session expired. Please sign in again.");
+  }
+
   const res = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
     method: "POST",
     headers: { ...MOBILE_HEADERS, Authorization: `Bearer ${refreshToken}` },
