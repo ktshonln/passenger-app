@@ -1,44 +1,153 @@
 import { fetchTrips, Trip, TripSearchParams } from "@/lib/api";
-import { MOCK_TRIPS, mockDelay } from "@/src/services/mock.data";
 import { useCallback, useState } from "react";
 
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
+const LIMIT = 20;
+
+interface TripsState {
+  trips: Trip[];
+  loading: boolean;
+  loadingMore: boolean;
+  error: string | null;
+  searched: boolean;
+  page: number;
+  hasMore: boolean;
+  lastParams: TripSearchParams | null;
+}
+
+const initialState: TripsState = {
+  trips: [],
+  loading: false,
+  loadingMore: false,
+  error: null,
+  searched: false,
+  page: 1,
+  hasMore: false,
+  lastParams: null,
+};
 
 export function useTrips() {
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
+  const [state, setState] = useState<TripsState>(initialState);
 
   const search = useCallback(async (params: TripSearchParams) => {
-    setLoading(true);
-    setError(null);
-    setSearched(true);
+    setState((s) => ({
+      ...s,
+      loading: true,
+      loadingMore: false,
+      error: null,
+      searched: true,
+      trips: [],
+      page: 1,
+      hasMore: false,
+      lastParams: params,
+    }));
     try {
-      if (USE_MOCK) {
-        await mockDelay(700);
-        // Filter mock trips by operatorId if provided
-        let results = [...MOCK_TRIPS];
-        if (params.operatorId) {
-          results = results.filter((t) => t.operatorId === params.operatorId);
-        }
-        setTrips(results);
-      } else {
-        setTrips(await fetchTrips(params));
-      }
+      const results = await fetchTrips({ ...params, page: 1, limit: LIMIT });
+      setState((s) => ({
+        ...s,
+        trips: results,
+        hasMore: results.length >= LIMIT,
+        loading: false,
+      }));
     } catch {
-      setError("Failed to load trips. Please try again.");
-      setTrips([]);
-    } finally {
-      setLoading(false);
+      setState((s) => ({
+        ...s,
+        error: "Failed to load trips. Please try again.",
+        trips: [],
+        loading: false,
+      }));
     }
   }, []);
 
-  const reset = useCallback(() => {
-    setTrips([]);
-    setError(null);
-    setSearched(false);
+  const loadMore = useCallback(async () => {
+    setState((s) => {
+      if (!s.hasMore || s.loadingMore || !s.lastParams) return s;
+      const nextPage = s.page + 1;
+
+      (async () => {
+        try {
+          const results = await fetchTrips({
+            ...s.lastParams!,
+            page: nextPage,
+            limit: LIMIT,
+          });
+          setState((prev) => ({
+            ...prev,
+            trips: [...prev.trips, ...results],
+            page: nextPage,
+            hasMore: results.length >= LIMIT,
+            loadingMore: false,
+          }));
+        } catch {
+          setState((prev) => ({
+            ...prev,
+            error: "Failed to load more trips. Please try again.",
+            loadingMore: false,
+          }));
+        }
+      })();
+
+      return { ...s, loadingMore: true };
+    });
   }, []);
 
-  return { trips, loading, error, searched, search, reset };
+  const retry = useCallback(async () => {
+    setState((s) => {
+      if (!s.lastParams) return s;
+      const params = s.lastParams;
+
+      (async () => {
+        try {
+          const results = await fetchTrips({
+            ...params,
+            page: 1,
+            limit: LIMIT,
+          });
+          setState((prev) => ({
+            ...prev,
+            trips: results,
+            page: 1,
+            hasMore: results.length >= LIMIT,
+            loading: false,
+            error: null,
+          }));
+        } catch {
+          setState((prev) => ({
+            ...prev,
+            error: "Failed to load trips. Please try again.",
+            trips: [],
+            loading: false,
+          }));
+        }
+      })();
+
+      return {
+        ...s,
+        loading: true,
+        loadingMore: false,
+        error: null,
+        trips: [],
+        page: 1,
+        hasMore: false,
+      };
+    });
+  }, []);
+
+  const reset = useCallback(() => {
+    setState(initialState);
+  }, []);
+
+  return {
+    trips: state.trips,
+    loading: state.loading,
+    loadingMore: state.loadingMore,
+    error: state.error,
+    searched: state.searched,
+    page: state.page,
+    hasMore: state.hasMore,
+    lastParams: state.lastParams,
+    search,
+    loadMore,
+    retry,
+    reset,
+  };
 }

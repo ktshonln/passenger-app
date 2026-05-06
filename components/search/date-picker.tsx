@@ -52,7 +52,10 @@ export function DatePicker({
 
   return (
     <View>
-      <Text className="text-[11px] font-bold text-secondary-text mb-1.5 tracking-widest uppercase">
+      <Text
+        className="text-[12px] font-extrabold text-secondary-text mb-2 tracking-widest uppercase"
+        style={{ letterSpacing: 1.2 }}
+      >
         {label}
       </Text>
 
@@ -63,37 +66,43 @@ export function DatePicker({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          borderRadius: 12,
-          height: 48,
-          paddingHorizontal: 14,
+          borderRadius: 14,
+          height: 52,
+          paddingHorizontal: 16,
           backgroundColor: error ? "#FFF5F5" : "#F8F9FB",
-          borderWidth: error ? 1.5 : 1,
-          borderColor: error ? "#E53E3E" : "#E2E8F0",
+          borderWidth: error ? 2 : 1.5,
+          borderColor: error ? "#E53E3E" : "#E8EDF5",
+          shadowColor: error ? "#E53E3E" : "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: error ? 0.1 : 0.02,
+          shadowRadius: 4,
+          elevation: error ? 2 : 1,
         }}
       >
         <Ionicons
           name="calendar-outline"
-          size={17}
+          size={19}
           color={error ? "#E53E3E" : value ? "#0A4370" : "#A0A8B4"}
         />
         <View style={{ flex: 1, alignItems: "center" }}>
           <Text
             style={{
-              fontSize: 15,
+              fontSize: 16,
               color: value ? "#1A202C" : "#A0A8B4",
-              fontWeight: value ? "600" : "400",
+              fontWeight: value ? "700" : "500",
+              letterSpacing: value ? -0.2 : 0,
             }}
           >
             {value ? formatDisplay(value) : (placeholder ?? "Select a date")}
           </Text>
         </View>
-        <View style={{ width: 17 }} />
+        <View style={{ width: 19 }} />
       </TouchableOpacity>
 
       {!!error && (
-        <View className="flex-row items-center gap-1 mt-1">
-          <Ionicons name="alert-circle-outline" size={12} color="#E53E3E" />
-          <Text className="text-[11px] text-danger">{error}</Text>
+        <View className="flex-row items-center gap-1.5 mt-1.5">
+          <Ionicons name="alert-circle-outline" size={13} color="#E53E3E" />
+          <Text className="text-[12px] text-danger font-semibold">{error}</Text>
         </View>
       )}
 

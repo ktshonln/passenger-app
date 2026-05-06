@@ -25,7 +25,8 @@ const isPhone = (v: string) => /^\+?[0-9]{9,15}$/.test(v.trim());
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { isLoading, error, sent, sendResetLink, reset } = useForgotPassword();
+  const { isLoading, error, sent, sentTo, sendOtp, reset } =
+    useForgotPassword();
 
   const [identifier, setIdentifier] = useState("");
   const [fieldError, setFieldError] = useState<string | undefined>();
@@ -70,43 +71,33 @@ export default function ForgotPasswordScreen() {
   }, []);
 
   useEffect(() => {
-    if (!sent) return;
-    Animated.sequence([
-      Animated.timing(cardOpacity, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-      Animated.parallel([
-        Animated.spring(successScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          speed: 10,
-          bounciness: 12,
-        }),
-        Animated.timing(successOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+    if (!sent || !sentTo) return;
+    // Navigate to reset-password with identifier pre-filled
+    // Small delay so the user sees the button loading state resolve
+    const timer = setTimeout(() => {
+      router.push({
+        pathname: "/auth/reset-password" as never,
+        params: { identifier: sentTo },
+      });
+      reset();
+    }, 300);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sent]);
+  }, [sent, sentTo]);
 
   const handleSubmit = async () => {
     if (!identifier.trim()) {
-      setFieldError(
-        t("auth.emailOrPhone") + " " + t("common.error").toLowerCase(),
-      );
+      setFieldError(t("auth.emailOrPhone") + " is required.");
       return;
     }
     if (!isValidIdentifier(identifier.trim())) {
-      setFieldError(t("auth.emailOrPhonePlaceholder"));
+      setFieldError(
+        "Enter a valid email or phone number (e.g. +250788000000).",
+      );
       return;
     }
     setFieldError(undefined);
-    await sendResetLink(identifier.trim());
+    await sendOtp(identifier.trim());
   };
 
   const handleResend = () => {

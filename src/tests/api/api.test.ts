@@ -152,6 +152,86 @@ describe("fetchTrips", () => {
     expect(url).toContain("operator_id=c1");
   });
 
+  it("forwards page and limit as query params", async () => {
+    mockFetch.mockResolvedValueOnce(ok([]));
+    await fetchTrips({
+      from: "KGL",
+      to: "MSZ",
+      date: "2026-04-06",
+      page: 2,
+      limit: 10,
+    });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("page=2");
+    expect(url).toContain("limit=10");
+  });
+
+  it("defaults page=1 and limit=20 when not provided", async () => {
+    mockFetch.mockResolvedValueOnce(ok([]));
+    await fetchTrips({ from: "KGL", to: "MSZ", date: "2026-04-06" });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("page=1");
+    expect(url).toContain("limit=20");
+  });
+
+  it("forwards time_from and time_to when provided", async () => {
+    mockFetch.mockResolvedValueOnce(ok([]));
+    await fetchTrips({
+      from: "KGL",
+      to: "MSZ",
+      date: "2026-04-06",
+      timeFrom: "06:00",
+      timeTo: "12:00",
+    });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("time_from=06%3A00");
+    expect(url).toContain("time_to=12%3A00");
+  });
+
+  it("omits time_from and time_to when not provided", async () => {
+    mockFetch.mockResolvedValueOnce(ok([]));
+    await fetchTrips({ from: "KGL", to: "MSZ", date: "2026-04-06" });
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).not.toContain("time_from");
+    expect(url).not.toContain("time_to");
+  });
+
+  it("handles plain array response", async () => {
+    const trips = [{ id: "t1" }, { id: "t2" }];
+    mockFetch.mockResolvedValueOnce(ok(trips));
+    const result = await fetchTrips({
+      from: "KGL",
+      to: "MSZ",
+      date: "2026-04-06",
+    });
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("t1");
+  });
+
+  it("handles { data, meta } envelope response", async () => {
+    const trips = [{ id: "t1" }, { id: "t2" }];
+    mockFetch.mockResolvedValueOnce(ok({ data: trips, meta: { total: 50 } }));
+    const result = await fetchTrips({
+      from: "KGL",
+      to: "MSZ",
+      date: "2026-04-06",
+    });
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("t1");
+  });
+
+  it("handles { data } envelope without meta", async () => {
+    const trips = [{ id: "t3" }];
+    mockFetch.mockResolvedValueOnce(ok({ data: trips }));
+    const result = await fetchTrips({
+      from: "KGL",
+      to: "MSZ",
+      date: "2026-04-06",
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("t3");
+  });
+
   it("throws on failure", async () => {
     mockFetch.mockResolvedValueOnce(fail(400));
     await expect(fetchTrips({ from: "x", to: "y", date: "z" })).rejects.toThrow(

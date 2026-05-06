@@ -1,21 +1,19 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { useBookings } from "@/hooks/use-bookings";
 import type { Booking } from "@/lib/api";
-import { MOCK_PAST_BOOKINGS } from "@/src/services/mock.data";
+import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FlatList,
-    Platform,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
-
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], {
@@ -144,17 +142,14 @@ function BookingCard({ booking }: { booking: Booking }) {
 export default function MyTripsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { bookings: apiBookings, refresh } = useBookings();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const { bookings, refresh } = useBookings();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useFocusEffect(
     useCallback(() => {
-      if (USE_MOCK) {
-        setBookings(MOCK_PAST_BOOKINGS);
-      } else {
-        refresh().then(() => setBookings(apiBookings));
-      }
-    }, [refresh, apiBookings]),
+      if (!isAuthenticated) return;
+      refresh();
+    }, [refresh, isAuthenticated]),
   );
 
   return (
@@ -162,18 +157,14 @@ export default function MyTripsScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
 
       {/* Header */}
-      <View
-        style={[S.header, { paddingTop: Platform.OS === "android" ? 48 : 60 }]}
-      >
-        <View>
-          <Text style={S.headerTitle}>{t("myTrips.title")}</Text>
-          <Text style={S.headerSub}>
-            {t(bookings.length === 1 ? "myTrips.booking" : "myTrips.bookings", {
-              count: bookings.length,
-            })}
-          </Text>
-        </View>
-      </View>
+      <AppBar
+        title={t("myTrips.title")}
+        subtitle={t(
+          bookings.length === 1 ? "myTrips.booking" : "myTrips.bookings",
+          { count: bookings.length },
+        )}
+        showBack={false}
+      />
 
       <FlatList
         data={bookings}

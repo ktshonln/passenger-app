@@ -1,48 +1,36 @@
-import { SearchCard } from "@/components/search/search-card";
-import type { Trip } from "@/lib/api";
+import { ExampleTripCard } from "@/components/search/example-trip-card";
 import {
-    MOCK_COMPANIES,
-    MOCK_PAST_BOOKINGS,
-    MOCK_POPULAR_ROUTES,
-    MOCK_SEARCH_HISTORY,
-    MOCK_TRIPS,
-    PopularRoute,
-    SearchHistoryItem,
-} from "@/src/services/mock.data";
+  FilterSheet,
+  FilterValues,
+  defaultFilters,
+} from "@/components/search/filter-sheet";
+import { SearchCard } from "@/components/search/search-card";
+import { TripCard } from "@/components/search/trip-card";
+import { TripCardSkeleton } from "@/components/search/trip-card-skeleton";
+import { useCompanies } from "@/hooks/use-companies";
+import { usePopularRoutes } from "@/hooks/use-popular-routes";
+import { useSearchHistory } from "@/hooks/use-search-history";
+import { useTrips } from "@/hooks/use-trips";
+import type { PopularRoute, SearchHistoryItem } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    FlatList,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
-
 type SortKey = "price_asc" | "price_desc" | "time" | "duration" | "rating";
-type BusTypeFilter =
-  | "all"
-  | "Luxury Coach"
-  | "Express"
-  | "Standard"
-  | "Mini Bus";
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString([], {
     day: "numeric",
@@ -123,351 +111,81 @@ function PopularRouteChip({
   );
 }
 
-// ─── Pre-search: last trip recap ──────────────────────────────────────────────
-function LastTripBanner({ onRebook }: { onRebook: () => void }) {
-  const { t } = useTranslation();
-  const last = MOCK_PAST_BOOKINGS[0];
-  if (!last) return null;
-  return (
-    <TouchableOpacity
-      style={S.lastTrip}
-      onPress={onRebook}
-      activeOpacity={0.85}
-    >
-      <View style={S.lastTripLeft}>
-        <View style={S.lastTripBadge}>
-          <Text style={S.lastTripBadgeText}>↩ {t("search.rebook")}</Text>
-        </View>
-        <View style={S.lastTripRoute}>
-          <Text style={S.lastTripCode}>{last.trip.from.code}</Text>
-          <View style={{ flex: 1, alignItems: "center" }}>
-            <View style={S.popularChipLine}>
-              <View style={S.routeDot} />
-              <View style={S.routeBar} />
-              <Ionicons name="bus" size={12} color="rgba(255,255,255,0.7)" />
-            </View>
-          </View>
-          <Text style={S.lastTripCode}>{last.trip.to.code}</Text>
-        </View>
-        <Text style={S.lastTripCities}>
-          {last.trip.from.city} → {last.trip.to.city}
-        </Text>
-      </View>
-      <View style={S.lastTripRight}>
-        <Text style={S.lastTripPrice}>
-          {last.currency}
-          {"\n"}
-          {last.totalPaid.toLocaleString()}
-        </Text>
-        <View style={S.lastTripArrow}>
-          <Ionicons name="arrow-forward" size={14} color="#0A4370" />
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Result: trip card ────────────────────────────────────────────────────────
-function TripCard({
-  trip,
-  onBook,
-  t,
-}: {
-  trip: Trip;
-  onBook: () => void;
-  t: (k: string, o?: any) => string;
-}) {
-  const seatsLow = trip.seatsAvailable <= 5;
-  const company = MOCK_COMPANIES.find((c) => c.name === trip.operator);
-
-  return (
-    <View style={S.card}>
-      <View style={S.cardHeader}>
-        <View style={S.cardOperator}>
-          {company && (
-            <Text style={{ fontSize: 20, marginRight: 8 }}>{company.logo}</Text>
-          )}
-          <View>
-            <Text style={S.cardOperatorName}>{trip.operator}</Text>
-            <View style={S.cardRatingRow}>
-              <Ionicons name="star" size={10} color="#F6AD55" />
-              <Text style={S.cardRatingText}>{company?.rating ?? "—"}</Text>
-              <Text style={S.cardRatingDot}>·</Text>
-              <Text style={S.cardRatingText}>{trip.busType}</Text>
-            </View>
-          </View>
-        </View>
-        {seatsLow && (
-          <View style={S.urgencyBadge}>
-            <Ionicons name="flame" size={10} color="#E53E3E" />
-            <Text style={S.urgencyText}>
-              {t("trips.seatsLeft", { count: trip.seatsAvailable })}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <View style={S.cardRoute}>
-        <View style={S.cardStop}>
-          <Text style={S.cardTime}>{formatTime(trip.departureTime)}</Text>
-          <Text style={S.cardCode}>{trip.from.code}</Text>
-          <Text style={S.cardCity} numberOfLines={1}>
-            {trip.from.city}
-          </Text>
-        </View>
-        <View style={S.cardMid}>
-          <Text style={S.cardDuration}>{trip.duration}</Text>
-          <View style={S.routeLine}>
-            <View style={S.routeDot} />
-            <View style={S.routeBar} />
-            <Ionicons name="bus" size={14} color="#0A4370" />
-          </View>
-          <View style={S.directBadge}>
-            <Text style={S.directText}>Direct</Text>
-          </View>
-        </View>
-        <View style={[S.cardStop, { alignItems: "flex-end" }]}>
-          <Text style={S.cardTime}>{formatTime(trip.arrivalTime)}</Text>
-          <Text style={S.cardCode}>{trip.to.code}</Text>
-          <Text style={S.cardCity} numberOfLines={1}>
-            {trip.to.city}
-          </Text>
-        </View>
-      </View>
-
-      <View style={S.cardFooter}>
-        <View>
-          <Text style={S.cardPrice}>
-            {trip.currency} {trip.price.toLocaleString()}
-          </Text>
-          <Text style={S.cardPriceSub}>{t("home.perPerson")}</Text>
-        </View>
-        <TouchableOpacity
-          style={S.bookBtn}
-          onPress={onBook}
-          activeOpacity={0.85}
-        >
-          <Text style={S.bookBtnText}>{t("trips.bookNow")}</Text>
-          <Ionicons name="arrow-forward" size={13} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-// ─── Filter sheet ─────────────────────────────────────────────────────────────
-function FilterSheet({
-  visible,
-  onClose,
-  sortKey,
-  setSortKey,
-  busType,
-  setBusType,
-  company,
-  setCompany,
-  t,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  sortKey: SortKey;
-  setSortKey: (k: SortKey) => void;
-  busType: BusTypeFilter;
-  setBusType: (b: BusTypeFilter) => void;
-  company: string | null;
-  setCompany: (c: string | null) => void;
-  t: (k: string) => string;
-}) {
-  const SORTS: {
-    key: SortKey;
-    label: string;
-    icon: keyof typeof Ionicons.glyphMap;
-  }[] = [
-    { key: "time", label: t("search.sortTime"), icon: "time-outline" },
-    {
-      key: "price_asc",
-      label: t("search.sortPrice"),
-      icon: "trending-down-outline",
-    },
-    {
-      key: "price_desc",
-      label: t("search.sortPriceDesc"),
-      icon: "trending-up-outline",
-    },
-    {
-      key: "duration",
-      label: t("search.sortDuration"),
-      icon: "hourglass-outline",
-    },
-    { key: "rating", label: t("search.sortRating"), icon: "star-outline" },
-  ];
-  const BUS_TYPES: { key: BusTypeFilter; icon: string }[] = [
-    { key: "all", icon: "🚌" },
-    { key: "Luxury Coach", icon: "✨" },
-    { key: "Express", icon: "⚡" },
-    { key: "Standard", icon: "🎫" },
-    { key: "Mini Bus", icon: "🚐" },
-  ];
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={S.modalOverlay}>
-        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
-        <View style={S.filterSheet}>
-          <View style={S.filterHandle} />
-          <View style={S.filterHeader}>
-            <Text style={S.filterTitle}>{t("search.filters")}</Text>
-            <TouchableOpacity onPress={onClose} style={S.filterClose}>
-              <Ionicons name="close" size={18} color="#1A202C" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={S.filterSection}>{t("search.sortBy")}</Text>
-            <View style={S.filterRows}>
-              {SORTS.map((s) => (
-                <TouchableOpacity
-                  key={s.key}
-                  style={[S.filterRow, sortKey === s.key && S.filterRowActive]}
-                  onPress={() => setSortKey(s.key)}
-                >
-                  <View
-                    style={[
-                      S.filterRowIcon,
-                      sortKey === s.key && S.filterRowIconActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name={s.icon}
-                      size={15}
-                      color={sortKey === s.key ? "#fff" : "#6A717D"}
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      S.filterRowText,
-                      sortKey === s.key && S.filterRowTextActive,
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
-                  {sortKey === s.key && (
-                    <Ionicons name="checkmark" size={16} color="#0A4370" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={S.filterSection}>{t("search.busType")}</Text>
-            <View style={S.filterChips}>
-              {BUS_TYPES.map((b) => (
-                <TouchableOpacity
-                  key={b.key}
-                  style={[
-                    S.filterChip,
-                    busType === b.key && S.filterChipActive,
-                  ]}
-                  onPress={() => setBusType(b.key)}
-                >
-                  <Text style={{ fontSize: 14 }}>{b.icon}</Text>
-                  <Text
-                    style={[
-                      S.filterChipText,
-                      busType === b.key && S.filterChipTextActive,
-                    ]}
-                  >
-                    {b.key === "all" ? t("search.allTypes") : b.key}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={S.filterSection}>{t("search.company")}</Text>
-            <View style={S.filterChips}>
-              <TouchableOpacity
-                style={[S.filterChip, company === null && S.filterChipActive]}
-                onPress={() => setCompany(null)}
-              >
-                <Text
-                  style={[
-                    S.filterChipText,
-                    company === null && S.filterChipTextActive,
-                  ]}
-                >
-                  {t("search.allCompanies")}
-                </Text>
-              </TouchableOpacity>
-              {MOCK_COMPANIES.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[S.filterChip, company === c.id && S.filterChipActive]}
-                  onPress={() => setCompany(c.id)}
-                >
-                  <Text style={{ fontSize: 14 }}>{c.logo}</Text>
-                  <Text
-                    style={[
-                      S.filterChipText,
-                      company === c.id && S.filterChipTextActive,
-                    ]}
-                  >
-                    {c.shortName}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-
-          <TouchableOpacity
-            style={S.applyBtn}
-            onPress={onClose}
-            activeOpacity={0.85}
-          >
-            <Text style={S.applyBtnText}>{t("search.applyFilters")}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function SearchScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { companies } = useCompanies();
+  const { routes: popularRoutes } = usePopularRoutes();
+  const {
+    history,
+    save: saveHistory,
+    remove: removeHistory,
+    clear: clearHistory,
+  } = useSearchHistory();
+  const {
+    trips: searchResults,
+    search: searchTrips,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    loadMore,
+    retry,
+    reset,
+  } = useTrips();
+
   const [searched, setSearched] = useState(false);
-  const [results, setResults] = useState<Trip[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("time");
-  const [busType, setBusType] = useState<BusTypeFilter>("all");
-  const [company, setCompany] = useState<string | null>(null);
-  const [history, setHistory] = useState<SearchHistoryItem[]>(
-    USE_MOCK ? MOCK_SEARCH_HISTORY : [],
-  );
-  const [lastSearchValues, setLastSearchValues] = useState<{
-    from: string;
-    to: string;
-    date: string;
-  } | null>(null);
+  const [appliedFilters, setAppliedFilters] =
+    useState<FilterValues>(defaultFilters);
   const fade = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(20)).current;
 
+  const { sortKey, companyId: company } = appliedFilters;
+
   const activeFilterCount = [
     sortKey !== "time" ? 1 : 0,
-    busType !== "all" ? 1 : 0,
     company !== null ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
-  function handleSearch(values: { from: string; to: string; date: string }) {
-    const raw = USE_MOCK ? MOCK_TRIPS : [];
-    setResults(raw);
+  async function handleSearch(values: {
+    from: string;
+    to: string;
+    date: string;
+    fromLocation?: any;
+    toLocation?: any;
+    timeFrom?: string;
+    timeTo?: string;
+  }) {
     setSearched(true);
-    setLastSearchValues(values);
     fade.setValue(0);
     slideUp.setValue(20);
+    await searchTrips({
+      from: values.from,
+      to: values.to,
+      date: values.date,
+      operatorId: appliedFilters.companyId ?? undefined,
+      timeFrom: values.timeFrom,
+      timeTo: values.timeTo,
+    });
+    if (values.from && values.to) {
+      saveHistory({
+        from: values.fromLocation ?? {
+          id: "",
+          name: values.from,
+          city: values.from,
+          code: "",
+        },
+        to: values.toLocation ?? {
+          id: "",
+          name: values.to,
+          city: values.to,
+          code: "",
+        },
+        date: values.date,
+      });
+    }
     Animated.parallel([
       Animated.timing(fade, {
         toValue: 1,
@@ -484,19 +202,29 @@ export default function SearchScreen() {
   }
 
   function handleHistoryPress(item: SearchHistoryItem) {
-    // Pre-fill search card — just trigger search with history values
-    handleSearch({ from: item.from.name, to: item.to.name, date: item.date });
+    handleSearch({
+      from: item.from.name,
+      to: item.to.name,
+      date: item.date,
+      fromLocation: item.from,
+      toLocation: item.to,
+    });
   }
 
   function handlePopularPress(route: PopularRoute) {
-    handleSearch({ from: route.from.name, to: route.to.name, date: "" });
+    handleSearch({
+      from: route.from.name,
+      to: route.to.name,
+      date: "",
+      fromLocation: route.from,
+      toLocation: route.to,
+    });
   }
 
   const filtered = useMemo(() => {
-    let list = [...results];
-    if (busType !== "all") list = list.filter((t) => t.busType === busType);
+    let list = [...searchResults];
     if (company !== null) {
-      const name = MOCK_COMPANIES.find((c) => c.id === company)?.name;
+      const name = companies.find((c) => c.id === company)?.name;
       if (name) list = list.filter((t) => t.operator === name);
     }
     switch (sortKey) {
@@ -514,36 +242,19 @@ export default function SearchScreen() {
         break;
       case "rating": {
         list.sort((a, b) => {
-          const ra =
-            MOCK_COMPANIES.find((c) => c.name === a.operator)?.rating ?? 0;
-          const rb =
-            MOCK_COMPANIES.find((c) => c.name === b.operator)?.rating ?? 0;
+          const ra = companies.find((c) => c.name === a.operator)?.rating ?? 0;
+          const rb = companies.find((c) => c.name === b.operator)?.rating ?? 0;
           return rb - ra;
         });
         break;
       }
     }
     return list;
-  }, [results, busType, company, sortKey]);
+  }, [searchResults, company, sortKey, companies]);
 
   // ── Pre-search discovery state ──
   const PreSearchContent = (
     <View style={S.preSearch}>
-      {/* Last trip rebook */}
-      {USE_MOCK && MOCK_PAST_BOOKINGS.length > 0 && (
-        <LastTripBanner
-          onRebook={() =>
-            handleHistoryPress({
-              id: "rebook",
-              from: MOCK_PAST_BOOKINGS[0].trip.from,
-              to: MOCK_PAST_BOOKINGS[0].trip.to,
-              date: "",
-              searchedAt: "",
-            })
-          }
-        />
-      )}
-
       {/* Search history */}
       {history.length > 0 && (
         <View style={S.section}>
@@ -552,7 +263,7 @@ export default function SearchScreen() {
               <Ionicons name="time-outline" size={14} color="#6A717D" />
               <Text style={S.sectionTitle}>{t("search.recentSearches")}</Text>
             </View>
-            <TouchableOpacity onPress={() => setHistory([])}>
+            <TouchableOpacity onPress={clearHistory}>
               <Text style={S.sectionAction}>{t("search.clearAll")}</Text>
             </TouchableOpacity>
           </View>
@@ -561,97 +272,111 @@ export default function SearchScreen() {
               key={item.id}
               item={item}
               onPress={() => handleHistoryPress(item)}
-              onRemove={() =>
-                setHistory((h) => h.filter((x) => x.id !== item.id))
-              }
+              onRemove={() => removeHistory(item.id)}
             />
           ))}
         </View>
       )}
 
       {/* Popular routes */}
-      <View style={S.section}>
-        <View style={S.sectionHeader}>
-          <View style={S.sectionHeaderLeft}>
-            <Ionicons name="trending-up-outline" size={14} color="#6A717D" />
-            <Text style={S.sectionTitle}>{t("home.popularRoutes")}</Text>
+      {popularRoutes.length > 0 && (
+        <View style={S.section}>
+          <View style={S.sectionHeader}>
+            <View style={S.sectionHeaderLeft}>
+              <Ionicons name="trending-up-outline" size={14} color="#6A717D" />
+              <Text style={S.sectionTitle}>{t("home.popularRoutes")}</Text>
+            </View>
           </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+          >
+            {popularRoutes.map((r, i) => (
+              <PopularRouteChip
+                key={i}
+                route={r}
+                onPress={() => handlePopularPress(r)}
+              />
+            ))}
+          </ScrollView>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-        >
-          {MOCK_POPULAR_ROUTES.map((r, i) => (
-            <PopularRouteChip
-              key={i}
-              route={r}
-              onPress={() => handlePopularPress(r)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      )}
 
       {/* Companies quick pick */}
-      <View style={S.section}>
-        <View style={S.sectionHeader}>
-          <View style={S.sectionHeaderLeft}>
-            <Ionicons name="business-outline" size={14} color="#6A717D" />
-            <Text style={S.sectionTitle}>{t("home.featuredCompanies")}</Text>
+      {companies.length > 0 && (
+        <View style={S.section}>
+          <View style={S.sectionHeader}>
+            <View style={S.sectionHeaderLeft}>
+              <Ionicons name="business-outline" size={14} color="#6A717D" />
+              <Text style={S.sectionTitle}>{t("home.featuredCompanies")}</Text>
+            </View>
           </View>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-        >
-          {MOCK_COMPANIES.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[
-                S.companyChip,
-                company === c.id && {
-                  backgroundColor: c.color,
-                  borderColor: c.color,
-                },
-              ]}
-              onPress={() => setCompany(company === c.id ? null : c.id)}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 16 }}>{c.logo}</Text>
-              <View>
-                <Text
-                  style={[
-                    S.companyChipName,
-                    company === c.id && { color: "#fff" },
-                  ]}
-                >
-                  {c.shortName}
-                </Text>
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
-                >
-                  <Ionicons
-                    name="star"
-                    size={9}
-                    color={
-                      company === c.id ? "rgba(255,255,255,0.8)" : "#F6AD55"
-                    }
-                  />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+          >
+            {companies.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={[
+                  S.companyChip,
+                  company === c.id && {
+                    backgroundColor: c.color,
+                    borderColor: c.color,
+                  },
+                ]}
+                onPress={() =>
+                  setAppliedFilters((f) => ({
+                    ...f,
+                    companyId: company === c.id ? null : c.id,
+                  }))
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 16 }}>{c.logoUrl}</Text>
+                <View>
                   <Text
                     style={[
-                      S.companyChipRating,
-                      company === c.id && { color: "rgba(255,255,255,0.85)" },
+                      S.companyChipName,
+                      company === c.id && { color: "#fff" },
                     ]}
                   >
-                    {c.rating}
+                    {c.shortName}
                   </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 2,
+                    }}
+                  >
+                    <Ionicons
+                      name="star"
+                      size={9}
+                      color={
+                        company === c.id ? "rgba(255,255,255,0.8)" : "#F6AD55"
+                      }
+                    />
+                    <Text
+                      style={[
+                        S.companyChipRating,
+                        company === c.id && { color: "rgba(255,255,255,0.85)" },
+                      ]}
+                    >
+                      {c.rating}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Example trip card */}
+      <ExampleTripCard />
     </View>
   );
 
@@ -659,24 +384,20 @@ export default function SearchScreen() {
     <View style={S.root}>
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
 
-      {/* Header */}
-      <View
-        style={[S.header, { paddingTop: Platform.OS === "android" ? 48 : 60 }]}
-      >
+      {/* ── Unified header: title + filter + search card ── */}
+      <View style={S.header}>
+        {/* Title row */}
         <View style={S.headerTop}>
-          <View>
+          <View style={S.headerText}>
             <Text style={S.headerTitle}>{t("search.title")}</Text>
-            <Text style={S.headerSub}>{t("search.subtitle")}</Text>
+            <Text style={S.headerSubtitle}>{t("search.subtitle")}</Text>
           </View>
           <TouchableOpacity
             style={[S.filterBtn, activeFilterCount > 0 && S.filterBtnActive]}
             onPress={() => setFilterOpen(true)}
+            activeOpacity={0.8}
           >
-            <Ionicons
-              name="options-outline"
-              size={18}
-              color={activeFilterCount > 0 ? "#fff" : "#0A4370"}
-            />
+            <Ionicons name="options-outline" size={20} color="#fff" />
             {activeFilterCount > 0 && (
               <View style={S.filterBadge}>
                 <Text style={S.filterBadgeText}>{activeFilterCount}</Text>
@@ -684,23 +405,57 @@ export default function SearchScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </View>
 
+        {/* Search card sits inside the header */}
+      </View>
+      <SearchCard onSearch={handleSearch} />
       <FlatList
         data={searched ? filtered : []}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={S.listContent}
         keyboardShouldPersistTaps="handled"
+        onEndReached={() => {
+          if (hasMore && !loadingMore) loadMore();
+        }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <ActivityIndicator color="#0A4370" />
+            </View>
+          ) : searched && !hasMore && searchResults.length > 0 ? (
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <Text style={{ fontSize: 12, color: "#A0A8B4" }}>
+                {t("search.noMoreTrips")}
+              </Text>
+            </View>
+          ) : null
+        }
         ListHeaderComponent={
           <View>
-            {/* Search card — overlaps header */}
-            <View style={S.searchCardWrap}>
-              <SearchCard onSearch={handleSearch} />
-            </View>
-
             {/* Pre-search discovery */}
             {!searched && PreSearchContent}
+
+            {/* Skeleton loading */}
+            {loading && searchResults.length === 0 && <TripCardSkeleton />}
+
+            {/* Error banner */}
+            {error && (
+              <View style={S.errorBanner}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color="#E53E3E"
+                />
+                <Text style={S.errorBannerText}>{error}</Text>
+                <TouchableOpacity onPress={retry} style={S.retryBtn}>
+                  <Text style={S.retryBtnText}>
+                    {t("search.retry", "Retry")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Results bar */}
             {searched && (
@@ -717,8 +472,8 @@ export default function SearchScreen() {
                   {searched && (
                     <TouchableOpacity
                       onPress={() => {
+                        reset();
                         setSearched(false);
-                        setResults([]);
                       }}
                       style={S.modifyBtn}
                     >
@@ -739,7 +494,9 @@ export default function SearchScreen() {
                     <TouchableOpacity
                       key={k}
                       style={[S.sortPill, sortKey === k && S.sortPillActive]}
-                      onPress={() => setSortKey(k)}
+                      onPress={() =>
+                        setAppliedFilters((f) => ({ ...f, sortKey: k }))
+                      }
                     >
                       <Text
                         style={[
@@ -768,6 +525,7 @@ export default function SearchScreen() {
           >
             <TripCard
               trip={item}
+              company={companies.find((c) => c.name === item.operator)}
               onBook={() =>
                 router.push({
                   pathname: "/booking" as never,
@@ -779,7 +537,7 @@ export default function SearchScreen() {
           </Animated.View>
         )}
         ListEmptyComponent={
-          searched ? (
+          searched && !loading ? (
             <View style={S.empty}>
               <Ionicons name="bus-outline" size={52} color="#CBD5E0" />
               <Text style={S.emptyTitle}>{t("search.noResults")}</Text>
@@ -787,11 +545,7 @@ export default function SearchScreen() {
               {activeFilterCount > 0 && (
                 <TouchableOpacity
                   style={S.clearBtn}
-                  onPress={() => {
-                    setBusType("all");
-                    setCompany(null);
-                    setSortKey("time");
-                  }}
+                  onPress={() => setAppliedFilters(defaultFilters)}
                 >
                   <Text style={S.clearBtnText}>{t("search.clearFilters")}</Text>
                 </TouchableOpacity>
@@ -804,12 +558,9 @@ export default function SearchScreen() {
       <FilterSheet
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}
-        sortKey={sortKey}
-        setSortKey={setSortKey}
-        busType={busType}
-        setBusType={setBusType}
-        company={company}
-        setCompany={setCompany}
+        onApply={(filters) => setAppliedFilters(filters)}
+        applied={appliedFilters}
+        companies={companies}
         t={t}
       />
     </View>
@@ -818,418 +569,365 @@ export default function SearchScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const S = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F3F4F6" },
+  root: { flex: 1, backgroundColor: "#F7F9FC" },
 
-  // Header
+  // Unified header with gradient effect
   header: {
     backgroundColor: "#0A4370",
-    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "android" ? 48 : 56,
+    paddingHorizontal: 18,
     paddingBottom: 20,
+    shadowColor: "#0A4370",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
   },
   headerTop: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
+    marginBottom: 14,
   },
-  headerTitle: { fontSize: 26, fontWeight: "900", color: "#fff" },
-  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 2 },
+  headerText: { flex: 1 },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#fff",
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0,0,0,0.15)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 4,
+    fontWeight: "500",
+    letterSpacing: 0.2,
+  },
   filterBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: "#fff",
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
+    marginTop: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   filterBtnActive: {
-    backgroundColor: "#0A4370",
+    backgroundColor: "rgba(255,255,255,0.28)",
     borderWidth: 2,
-    borderColor: "#fff",
+    borderColor: "rgba(255,255,255,0.5)",
   },
   filterBadge: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: -5,
+    right: -5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: "#E53E3E",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#0A4370",
+    shadowColor: "#E53E3E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  filterBadgeText: { fontSize: 9, fontWeight: "800", color: "#fff" },
+  filterBadgeText: { fontSize: 10, fontWeight: "900", color: "#fff" },
 
-  searchCardWrap: { margin: 16, marginTop: -16 },
   listContent: { paddingBottom: 140 },
 
   // Pre-search
-  preSearch: { paddingBottom: 8 },
-  section: { marginHorizontal: 16, marginTop: 24 },
+  preSearch: { paddingBottom: 12 },
+  section: { marginHorizontal: 18, marginTop: 28 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  sectionHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle: { fontSize: 14, fontWeight: "800", color: "#1A202C" },
-  sectionAction: { fontSize: 12, fontWeight: "600", color: "#0A4370" },
+  sectionHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1A202C",
+    letterSpacing: -0.2,
+  },
+  sectionAction: { fontSize: 13, fontWeight: "700", color: "#0A4370" },
 
   // History row
   historyRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: "#E8EDF5",
+    shadowColor: "#0A4370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   historyIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#EEF4FF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   historyMid: { flex: 1 },
-  historyRoute: { flexDirection: "row", alignItems: "center", gap: 6 },
-  historyCity: { fontSize: 14, fontWeight: "700", color: "#1A202C" },
-  historyDate: { fontSize: 11, color: "#A0A8B4", marginTop: 2 },
-  historyRemove: { padding: 4 },
+  historyRoute: { flexDirection: "row", alignItems: "center", gap: 7 },
+  historyCity: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1A202C",
+    letterSpacing: -0.2,
+  },
+  historyDate: {
+    fontSize: 12,
+    color: "#6A717D",
+    marginTop: 3,
+    fontWeight: "500",
+  },
+  historyRemove: { padding: 6 },
 
   // Popular route chip
   popularChip: {
-    width: 150,
+    width: 160,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "#E8EDF5",
     shadowColor: "#0A4370",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   popularChipRoute: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginBottom: 6,
+    gap: 5,
+    marginBottom: 8,
   },
-  popularChipCode: { fontSize: 14, fontWeight: "900", color: "#1A202C" },
+  popularChipCode: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#1A202C",
+    letterSpacing: -0.3,
+  },
   popularChipLine: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: 3,
   },
-  popularChipCities: { fontSize: 10, color: "#6A717D", marginBottom: 8 },
+  popularChipCities: {
+    fontSize: 11,
+    color: "#6A717D",
+    marginBottom: 10,
+    fontWeight: "500",
+  },
   popularChipFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  popularChipPrice: { fontSize: 12, fontWeight: "800", color: "#0A4370" },
-  popularChipMeta: { flexDirection: "row", alignItems: "center", gap: 3 },
-  popularChipMetaText: { fontSize: 10, color: "#6A717D" },
-
-  // Last trip banner
-  lastTrip: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: "#0A4370",
-    borderRadius: 20,
-    padding: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    overflow: "hidden",
+  popularChipPrice: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#0A4370",
+    letterSpacing: -0.2,
   },
-  lastTripLeft: { flex: 1 },
-  lastTripBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    alignSelf: "flex-start",
-    marginBottom: 8,
-  },
-  lastTripBadgeText: { fontSize: 10, fontWeight: "800", color: "#fff" },
-  lastTripRoute: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
-  lastTripCode: { fontSize: 18, fontWeight: "900", color: "#fff" },
-  lastTripCities: { fontSize: 11, color: "rgba(255,255,255,0.6)" },
-  lastTripRight: { alignItems: "center", gap: 8 },
-  lastTripPrice: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#fff",
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  lastTripArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  popularChipMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  popularChipMetaText: { fontSize: 10, color: "#6A717D", fontWeight: "600" },
 
   // Company chip
   companyChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
+    borderColor: "#E8EDF5",
+    shadowColor: "#0A4370",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  companyChipName: { fontSize: 12, fontWeight: "700", color: "#1A202C" },
-  companyChipRating: { fontSize: 10, color: "#6A717D" },
+  companyChipName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1A202C",
+    letterSpacing: -0.1,
+  },
+  companyChipRating: { fontSize: 11, color: "#6A717D", fontWeight: "600" },
 
   // Results bar
-  resultsBar: { marginHorizontal: 16, marginBottom: 12 },
+  resultsBar: { marginHorizontal: 18, marginBottom: 14, marginTop: 8 },
   resultsBarTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  resultsText: { fontSize: 14, fontWeight: "800", color: "#1A202C" },
+  resultsText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#1A202C",
+    letterSpacing: -0.3,
+  },
   modifyBtn: {
     backgroundColor: "#EEF4FF",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  modifyBtnText: { fontSize: 11, fontWeight: "700", color: "#0A4370" },
-  sortPill: {
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: "#fff",
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#D6E4FF",
   },
-  sortPillActive: { backgroundColor: "#0A4370", borderColor: "#0A4370" },
-  sortPillText: { fontSize: 11, fontWeight: "600", color: "#6A717D" },
-  sortPillTextActive: { color: "#fff" },
-
-  // Trip card
-  card: {
-    marginHorizontal: 16,
-    marginBottom: 12,
+  modifyBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A4370",
+    letterSpacing: 0.2,
+  },
+  sortPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
     backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderWidth: 1.5,
+    borderColor: "#E8EDF5",
     shadowColor: "#0A4370",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  cardOperator: { flexDirection: "row", alignItems: "center" },
-  cardOperatorName: { fontSize: 14, fontWeight: "800", color: "#1A202C" },
-  cardRatingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    marginTop: 2,
-  },
-  cardRatingText: { fontSize: 11, color: "#6A717D", fontWeight: "600" },
-  cardRatingDot: { fontSize: 11, color: "#C8CDD6" },
-  urgencyBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#FFF5F5",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  urgencyText: { fontSize: 10, fontWeight: "700", color: "#E53E3E" },
-  cardRoute: { flexDirection: "row", alignItems: "center", gap: 8 },
-  cardStop: { width: 68 },
-  cardTime: { fontSize: 20, fontWeight: "900", color: "#1A202C" },
-  cardCode: { fontSize: 11, fontWeight: "700", color: "#6A717D", marginTop: 2 },
-  cardCity: { fontSize: 10, color: "#A0A8B4", marginTop: 1 },
-  cardMid: { flex: 1, alignItems: "center", gap: 4 },
-  cardDuration: { fontSize: 11, fontWeight: "700", color: "#6A717D" },
-  directBadge: {
-    backgroundColor: "#F0FFF4",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  directText: { fontSize: 9, fontWeight: "700", color: "#38A169" },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F2F5",
-  },
-  cardPrice: { fontSize: 20, fontWeight: "900", color: "#0A4370" },
-  cardPriceSub: { fontSize: 10, color: "#A0A8B4", marginTop: 1 },
-  cardSeats: { fontSize: 10, fontWeight: "600" },
-  bookBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  sortPillActive: {
     backgroundColor: "#0A4370",
-    borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    borderColor: "#0A4370",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  bookBtnText: { fontSize: 14, fontWeight: "800", color: "#fff" },
+  sortPillText: { fontSize: 12, fontWeight: "600", color: "#6A717D" },
+  sortPillTextActive: { color: "#fff", fontWeight: "700" },
 
+  // Route line decorators
   routeLine: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    gap: 2,
+    gap: 3,
   },
   routeDot: {
-    width: 5,
-    height: 5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
     backgroundColor: "#0A4370",
   },
-  routeBar: { flex: 1, height: 1.5, backgroundColor: "#CBD5E0" },
+  routeBar: { flex: 1, height: 2, backgroundColor: "#CBD5E0" },
 
-  // Empty
+  // Empty state
   empty: {
     alignItems: "center",
-    paddingTop: 60,
-    paddingHorizontal: 32,
-    gap: 10,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: "800", color: "#1A202C" },
-  emptyHint: { fontSize: 13, color: "#6A717D", textAlign: "center" },
-  clearBtn: {
-    marginTop: 8,
-    backgroundColor: "#0A4370",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  clearBtnText: { fontSize: 13, fontWeight: "700", color: "#fff" },
-
-  // Filter modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
-  filterSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-    paddingBottom: 36,
-    maxHeight: "85%",
-  },
-  filterHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#E2E8F0",
-    alignSelf: "center",
-    marginBottom: 16,
-  },
-  filterHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  filterTitle: { fontSize: 20, fontWeight: "900", color: "#1A202C" },
-  filterClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterSection: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#6A717D",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 10,
-    marginTop: 20,
-  },
-  filterRows: { gap: 6 },
-  filterRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    paddingTop: 80,
+    paddingHorizontal: 40,
     gap: 12,
-    padding: 12,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#1A202C",
+    letterSpacing: -0.3,
+  },
+  emptyHint: {
+    fontSize: 14,
+    color: "#6A717D",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  clearBtn: {
+    marginTop: 12,
+    backgroundColor: "#0A4370",
     borderRadius: 14,
-    backgroundColor: "#F8F9FB",
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    shadowColor: "#0A4370",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  filterRowActive: { backgroundColor: "#EEF4FF", borderColor: "#0A4370" },
-  filterRowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    backgroundColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
+  clearBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.3,
   },
-  filterRowIconActive: { backgroundColor: "#0A4370" },
-  filterRowText: { flex: 1, fontSize: 13, fontWeight: "600", color: "#6A717D" },
-  filterRowTextActive: { color: "#0A4370", fontWeight: "700" },
-  filterChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  filterChip: {
+
+  // Error banner
+  errorBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
+    gap: 10,
+    marginHorizontal: 18,
+    marginBottom: 14,
+    backgroundColor: "#FFF5F5",
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8F9FB",
+    borderColor: "#FED7D7",
+    shadowColor: "#E53E3E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  filterChipActive: { backgroundColor: "#0A4370", borderColor: "#0A4370" },
-  filterChipText: { fontSize: 12, fontWeight: "600", color: "#6A717D" },
-  filterChipTextActive: { color: "#fff" },
-  applyBtn: {
-    backgroundColor: "#0A4370",
-    borderRadius: 16,
-    height: 54,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#C53030",
+    fontWeight: "600",
+    lineHeight: 18,
   },
-  applyBtnText: { fontSize: 16, fontWeight: "800", color: "#fff" },
+  retryBtn: {
+    backgroundColor: "#E53E3E",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    shadowColor: "#E53E3E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.2,
+  },
 });

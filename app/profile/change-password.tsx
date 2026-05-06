@@ -1,3 +1,4 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { changePassword } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -151,27 +152,10 @@ export default function ChangePasswordScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-      <View
-        className="bg-primary px-5 pb-5"
-        style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="flex-row items-center gap-1.5 mb-3"
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">
-            {t("common.back")}
-          </Text>
-        </TouchableOpacity>
-        <Text className="text-[22px] font-black text-white">
-          {t("profile.changePasswordTitle")}
-        </Text>
-        <Text className="text-[13px] text-white/60 mt-1">
-          {t("profile.keepAccountSecure")}
-        </Text>
-      </View>
+      <AppBar
+        title={t("profile.changePasswordTitle")}
+        subtitle={t("profile.keepAccountSecure")}
+      />
 
       <ScrollView
         className="flex-1"

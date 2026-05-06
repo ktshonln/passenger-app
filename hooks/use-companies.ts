@@ -1,34 +1,47 @@
-import { Company, fetchCompanies } from "@/lib/api";
-import { MOCK_COMPANIES, mockDelay } from "@/src/services/mock.data";
-import { useCallback, useEffect, useState } from "react";
+import {
+    Company,
+    fetchPublicOrganizations,
+    PublicOrganization,
+} from "@/lib/api";
+import { useEffect, useState } from "react";
 
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
+function mapToCompany(org: PublicOrganization): Company {
+  return {
+    id: org.id,
+    name: org.name,
+    shortName: org.name,
+    logoUrl: org.logo_path ?? "",
+    color: "#0A4370",
+    rating: 0,
+    totalTripsPerDay: 0,
+    popular: false,
+  };
+}
 
 export function useCompanies() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (USE_MOCK) {
-        await mockDelay(400);
-        setCompanies(MOCK_COMPANIES);
-      } else {
-        setCompanies(await fetchCompanies());
-      }
-    } catch {
-      setError("Failed to load companies.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchPublicOrganizations()
+      .then((orgs) => {
+        if (!cancelled) setCompanies(orgs.map(mapToCompany));
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err : new Error(String(err)));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  return { companies, loading, error, reload: load };
+  return { companies, loading, error };
 }

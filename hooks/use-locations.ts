@@ -1,54 +1,92 @@
-import { fetchLocations, Location } from "@/lib/api";
-import {
-    getMockLocationSuggestions,
-    LocationSuggestion,
-} from "@/src/services/mock.data";
+import { fetchLocations, LocationSuggestion } from "@/lib/api";
+import * as locationCache from "@/lib/location-cache";
 import { useEffect, useRef, useState } from "react";
 
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
+interface LocationsState {
+  results: LocationSuggestion[];
+  loading: boolean;
+  error: string | null;
+}
 
-export function useLocations(query: string, debounceMs = 300) {
-  const [results, setResults] = useState<LocationSuggestion[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useLocations(query: string) {
+  const [state, setState] = useState<LocationsState>({
+    results: [],
+    loading: false,
+    error: null,
+  });
+
+  const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!query.trim() || query.length < 2) {
-      setResults([]);
-      setLoading(false);
+    // 1. Short query — clear results and bail out
+    if (!query || query.length < 1) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      try {
+        abortRef.current?.abort();
+      } catch {
+        // AbortController may not be supported on all Hermes versions
+      }
+      setState({ results: [], loading: false, error: null });
       return;
     }
 
-    if (timerRef.current) clearTimeout(timerRef.current);
+    // 2. Cache hit — return immediately, no fetch needed
+    const cached = locationCache.get(query);
+    if (cached) {
+      setState({ results: cached, loading: false, error: null });
+      return;
+    }
 
+    // 3. Clear previous debounce timer
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // 4. Set new 300 ms debounce timer
     timerRef.current = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
+      // 5a. Abort any in-flight request
       try {
-        if (USE_MOCK) {
-          // Simulate network delay
-          await new Promise((r) => setTimeout(r, 250));
-          setResults(getMockLocationSuggestions(query));
-        } else {
-          const data: Location[] = await fetchLocations(query);
-          // Wrap plain Location in LocationSuggestion shape
-          setResults(
-            data.map((l) => ({ ...l, tripsToday: 0, popularDestinations: [] })),
-          );
-        }
+        abortRef.current?.abort();
       } catch {
-        setError("Could not load suggestions");
-        setResults([]);
-      } finally {
-        setLoading(false);
+        // safe to ignore
       }
-    }, debounceMs);
+
+      // 5b. Create a fresh controller for this request
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+
+      try {
+        const results = await fetchLocations(query, controller.signal);
+        // 5c. Write to cache on success
+        locationCache.set(query, results);
+        setState({ results, loading: false, error: null });
+      } catch (err: unknown) {
+        // 5d. Ignore AbortError — it means a newer query superseded this one
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        setState({
+          results: [],
+          loading: false,
+          error: "Could not load suggestions",
+        });
+      }
+    }, 300);
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [query, debounceMs]);
+  }, [query]);
 
-  return { results, loading, error };
+  return { results: state.results, loading: state.loading, error: state.error };
 }

@@ -9,6 +9,7 @@ export function useAuth() {
   const error = useAuthStore((s) => s.error);
   const pendingUserId = useAuthStore((s) => s.pendingUserId);
   const otpExpiresIn = useAuthStore((s) => s.otpExpiresIn);
+  const loginIdentifier = useAuthStore((s) => s.loginIdentifier);
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
   const verifyPhone = useAuthStore((s) => s.verifyPhone);
@@ -27,6 +28,7 @@ export function useAuth() {
     error,
     pendingUserId,
     otpExpiresIn,
+    loginIdentifier,
     login,
     register,
     verifyPhone,

@@ -3,18 +3,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import {
-    AccountSuspendedError,
-    AuthUser,
-    LoginPayload,
-    loginRequest,
-    logoutAllRequest,
-    logoutRequest,
-    refreshRequest,
-    RegisterPayload,
-    registerRequest,
-    TokenReuseError,
-    VerifyPhonePayload,
-    verifyPhoneRequest,
+  AccountSuspendedError,
+  AuthUser,
+  LoginPayload,
+  loginRequest,
+  logoutAllRequest,
+  logoutRequest,
+  refreshRequest,
+  RegisterPayload,
+  registerRequest,
+  TokenReuseError,
+  VerifyPhonePayload,
+  verifyPhoneRequest,
 } from "../services/auth.service";
 
 // ─── State shape ──────────────────────────────────────────────────────────────
@@ -28,10 +28,11 @@ interface AuthState {
   error: string | null;
   pendingUserId: string | null;
   otpExpiresIn: number | null;
+  /** Returned by verify-phone — pre-fill the login screen with this identifier */
+  loginIdentifier: string | null;
 
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
-  verifyPhone: (payload: VerifyPhonePayload) => Promise<void>;
   /**
    * Silent token refresh — mobile only.
    * Sends refresh token in Authorization header.
@@ -44,6 +45,8 @@ interface AuthState {
   clearError: () => void;
   clearPending: () => void;
   verifyPassword: (password: string) => Promise<boolean>;
+  /** Returns the login_identifier from verify-phone for pre-filling login */
+  verifyPhone: (payload: VerifyPhonePayload) => Promise<string>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -73,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
       error: null,
       pendingUserId: null,
       otpExpiresIn: null,
+      loginIdentifier: null,
 
       login: async (payload) => {
         set({ isLoading: true, error: null });
@@ -113,18 +117,14 @@ export const useAuthStore = create<AuthState>()(
       verifyPhone: async (payload) => {
         set({ isLoading: true, error: null });
         try {
-          const { access_token, refresh_token, user } =
-            await verifyPhoneRequest(payload);
-          setAuthToken(access_token);
+          const { login_identifier } = await verifyPhoneRequest(payload);
           set({
-            token: access_token,
-            refreshToken: refresh_token,
-            user,
-            isAuthenticated: true,
             isLoading: false,
             pendingUserId: null,
             otpExpiresIn: null,
+            loginIdentifier: login_identifier,
           });
+          return login_identifier;
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : "Verification failed.";
           set({ error: msg, isLoading: false });
@@ -179,31 +179,26 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         set({ isLoading: true });
-        const { token } = get();
-        if (token) await logoutRequest(token);
+        const { refreshToken } = get();
+        // API spec: send refresh token in Authorization header
+        if (refreshToken) await logoutRequest(refreshToken);
         clearLocalAuth(set);
       },
 
       logoutAll: async () => {
         set({ isLoading: true });
-        const { token } = get();
-        if (token) await logoutAllRequest(token);
+        const { refreshToken } = get();
+        if (refreshToken) await logoutAllRequest(refreshToken);
         clearLocalAuth(set);
       },
 
       clearError: () => set({ error: null }),
-      clearPending: () => set({ pendingUserId: null, otpExpiresIn: null }),
+      clearPending: () =>
+        set({ pendingUserId: null, otpExpiresIn: null, loginIdentifier: null }),
 
       verifyPassword: async (password: string) => {
         const { user } = get();
         if (!user) return false;
-        // In mock mode, accept the demo password
-        if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { DEMO_CREDENTIALS } = require("../services/mock.data");
-          return password === DEMO_CREDENTIALS.password;
-        }
-        // Real mode: re-authenticate with stored identifier
         try {
           await loginRequest({
             identifier: user.email ?? user.phone_number,
@@ -218,13 +213,16 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "katisha-auth",
       storage: createJSONStorage(() => AsyncStorage),
-      // Persist both tokens — access token for immediate use, refresh for silent renewal
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      // Restore the in-memory auth token after AsyncStorage rehydration
+      onRehydrateStorage: () => (state) => {
+        if (state?.token) setAuthToken(state.token);
+      },
     },
   ),
 );

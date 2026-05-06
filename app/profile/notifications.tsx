@@ -1,3 +1,4 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { useProfile } from "@/hooks/use-profile";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -5,12 +6,10 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Platform,
     ScrollView,
     StatusBar,
     Switch,
     Text,
-    TouchableOpacity,
     View,
 } from "react-native";
 
@@ -84,27 +83,10 @@ export default function NotificationsScreen() {
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-      <View
-        className="bg-primary px-5 pb-5"
-        style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="flex-row items-center gap-1.5 mb-3"
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">
-            {t("common.back")}
-          </Text>
-        </TouchableOpacity>
-        <Text className="text-[22px] font-black text-white">
-          {t("profile.notificationsTitle")}
-        </Text>
-        <Text className="text-[13px] text-white/60 mt-1">
-          {t("profile.notificationsSubtitle")}
-        </Text>
-      </View>
+      <AppBar
+        title={t("profile.notificationsTitle")}
+        subtitle={t("profile.notificationsSubtitle")}
+      />
 
       {loading && !profile ? (
         <View className="flex-1 items-center justify-center">

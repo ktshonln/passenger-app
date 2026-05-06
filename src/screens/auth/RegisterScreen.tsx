@@ -17,6 +17,7 @@ import {
 import { AuthButton } from "../../components/auth/AuthButton";
 import { AuthInput } from "../../components/auth/AuthInput";
 import { useAuth } from "../../hooks/useAuth";
+import { useLanguage } from "../../hooks/useLanguage";
 import { validateRegister } from "../../utils/validation";
 
 const { width } = Dimensions.get("window");
@@ -25,6 +26,7 @@ export default function RegisterScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { register, isLoading, error, clearError } = useAuth();
+  const { current: locale } = useLanguage();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -96,6 +98,7 @@ export default function RegisterScreen() {
         last_name: lastName.trim(),
         phone_number: phone.trim(),
         password,
+        locale,
         email: email.trim() || undefined,
       });
       router.push("/auth/verify-phone");

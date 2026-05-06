@@ -1,6 +1,7 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_E164_RE = /^\+[1-9]\d{7,14}$/; // strict E.164: +<country><number>
-const PHONE_LOOSE_RE = /^\+?[0-9]{9,15}$/; // loose — for login identifier
+// Loose: accepts +250788000000, 0788000000, +250 788 000 000 (spaces stripped)
+const PHONE_LOOSE_RE = /^\+?[0-9\s\-]{7,20}$/;
 
 export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
@@ -10,9 +11,10 @@ export function isValidPhone(value: string): boolean {
   return PHONE_E164_RE.test(value.trim());
 }
 
-/** Used for login — accepts email OR any phone-like string */
+/** Used for login/forgot-password — accepts email OR any phone-like string */
 export function isValidIdentifier(value: string): boolean {
-  return EMAIL_RE.test(value.trim()) || PHONE_LOOSE_RE.test(value.trim());
+  const v = value.trim();
+  return EMAIL_RE.test(v) || PHONE_LOOSE_RE.test(v);
 }
 
 /** Min 8 chars, at least 1 letter and 1 number */

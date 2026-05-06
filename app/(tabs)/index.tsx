@@ -1,25 +1,31 @@
-import {
-    MOCK_COMPANIES,
-    MOCK_TRIPS,
-    getMockRecommendations,
-} from "@/src/services/mock.data";
+import { useCompanies } from "@/hooks/use-companies";
+import { useLocations } from "@/hooks/use-locations";
+import { usePopularRoutes } from "@/hooks/use-popular-routes";
+import { useRecommendations } from "@/hooks/use-recommendations";
+import type {
+  Company,
+  LocationSuggestion,
+  PopularRoute,
+  Recommendation,
+  Trip,
+} from "@/lib/api";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Platform,
+  Image as RNImage,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 function greeting(name: string | undefined, t: (k: string) => string) {
   const h = new Date().getHours();
@@ -30,14 +36,6 @@ function greeting(name: string | undefined, t: (k: string) => string) {
         ? t("home.goodAfternoon")
         : t("home.goodEvening");
   return name ? `${time}, ${name} 👋` : time;
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────
@@ -65,32 +63,77 @@ function SectionHeader({
   );
 }
 
-// ─── Promo banner ─────────────────────────────────────────────────────────────
-function PromoBanner({ t }: { t: (k: string) => string }) {
+// ─── Inline quick search ──────────────────────────────────────────────────────
+function QuickSearch({
+  onSelect,
+}: {
+  onSelect: (loc: LocationSuggestion) => void;
+}) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const { results, loading } = useLocations(query);
+  const showDropdown = focused && query.length > 0 && results.length > 0;
+
   return (
-    <View style={S.promo}>
-      <View style={S.promoGlow} />
-      <View style={{ flex: 1 }}>
-        <View style={S.promoBadge}>
-          <Text style={S.promoBadgeText}>🎉 PROMO</Text>
-        </View>
-        <Text style={S.promoTitle}>{t("home.promoTitle")}</Text>
-        <Text style={S.promoSubtitle}>{t("home.promoSubtitle")}</Text>
+    <View style={{ zIndex: 100 }}>
+      <View style={S.quickSearch}>
+        <Ionicons name="search-outline" size={16} color="#6A717D" />
+        <TextInput
+          style={S.quickSearchInput}
+          placeholder={t("home.departurePlaceholder")}
+          placeholderTextColor="#A0A8B4"
+          value={query}
+          onChangeText={setQuery}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          autoCorrect={false}
+          autoCapitalize="words"
+        />
+        {loading ? (
+          <View style={S.quickSearchBtn}>
+            <Ionicons name="hourglass-outline" size={14} color="#fff" />
+          </View>
+        ) : (
+          <View style={S.quickSearchBtn}>
+            <Ionicons name="arrow-forward" size={14} color="#fff" />
+          </View>
+        )}
       </View>
-      <TouchableOpacity style={S.promoBtn} activeOpacity={0.85}>
-        <Text style={S.promoBtnText}>{t("home.promoBtn")}</Text>
-        <Ionicons name="arrow-forward" size={13} color="#0A4370" />
-      </TouchableOpacity>
+
+      {showDropdown && (
+        <View style={S.quickDropdown}>
+          {results.slice(0, 5).map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={S.quickDropdownItem}
+              onPress={() => {
+                setQuery(item.name);
+                setFocused(false);
+                onSelect(item);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={S.quickDropdownIcon}>
+                <Ionicons name="location" size={14} color="#0A4370" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={S.quickDropdownName}>{item.name}</Text>
+                <Text style={S.quickDropdownCity}>{item.city}</Text>
+              </View>
+              <Text style={S.quickDropdownCode}>{item.code}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
-
-// ─── Company card ─────────────────────────────────────────────────────────────
 function CompanyCard({
   company,
   onPress,
 }: {
-  company: (typeof MOCK_COMPANIES)[0];
+  company: Company;
   onPress: () => void;
 }) {
   const { t } = useTranslation();
@@ -101,7 +144,7 @@ function CompanyCard({
       activeOpacity={0.85}
     >
       <View style={[S.companyLogo, { backgroundColor: company.color + "18" }]}>
-        <Text style={{ fontSize: 26 }}>{company.logo}</Text>
+        <Text style={{ fontSize: 26 }}>{company.logoUrl}</Text>
       </View>
       <Text style={S.companyName} numberOfLines={1}>
         {company.shortName}
@@ -111,7 +154,7 @@ function CompanyCard({
         <Text style={S.companyRatingText}>{company.rating}</Text>
       </View>
       <Text style={S.companyTrips}>
-        {company.totalTrips} {t("home.trips")}
+        {company.totalTripsPerDay} {t("home.trips")}
       </Text>
     </TouchableOpacity>
   );
@@ -119,84 +162,61 @@ function CompanyCard({
 
 // ─── Popular route card ───────────────────────────────────────────────────────
 function PopularRouteCard({
-  trip,
-  onBook,
+  route,
+  onSearch,
   t,
 }: {
-  trip: (typeof MOCK_TRIPS)[0];
-  onBook: () => void;
+  route: PopularRoute;
+  onSearch: () => void;
   t: (k: string, o?: any) => string;
 }) {
-  const seatsLow = trip.seatsAvailable <= 5;
   return (
     <View style={S.routeCard}>
       <View style={S.routeCardHeader}>
-        <Text style={S.routeOperator}>{trip.operator}</Text>
-        <View style={[S.busTypeBadge]}>
-          <Text style={S.busTypeText}>{trip.busType}</Text>
+        <Text style={S.routeOperator}>
+          {route.from.city} → {route.to.city}
+        </Text>
+        <View style={S.busTypeBadge}>
+          <Text style={S.busTypeText}>{route.duration}</Text>
         </View>
       </View>
       <View style={S.routeRow}>
         <View style={{ alignItems: "center" }}>
-          <Text style={S.routeCode}>{trip.from.code}</Text>
+          <Text style={S.routeCode}>{route.from.code}</Text>
           <Text style={S.routeCity} numberOfLines={1}>
-            {trip.from.city}
+            {route.from.city}
           </Text>
         </View>
         <View style={S.routeMid}>
-          <Text style={S.routeDuration}>{trip.duration}</Text>
+          <Text style={S.routeDuration}>{route.duration}</Text>
           <View style={S.routeLine}>
             <View style={S.routeDot} />
             <View style={S.routeBar} />
             <Ionicons name="bus" size={13} color="#0A4370" />
           </View>
           <Text style={S.routeTime}>
-            {formatTime(trip.departureTime)} → {formatTime(trip.arrivalTime)}
+            {route.tripsPerDay} {t("home.trips")}/day
           </Text>
         </View>
         <View style={{ alignItems: "center" }}>
-          <Text style={S.routeCode}>{trip.to.code}</Text>
+          <Text style={S.routeCode}>{route.to.code}</Text>
           <Text style={S.routeCity} numberOfLines={1}>
-            {trip.to.city}
+            {route.to.city}
           </Text>
         </View>
       </View>
       <View style={S.routeFooter}>
         <View>
           <Text style={S.routePrice}>
-            {trip.currency} {trip.price.toLocaleString()}
+            {route.currency} {route.minPrice.toLocaleString()}+
           </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 3,
-              marginTop: 2,
-            }}
-          >
-            <Ionicons
-              name="people-outline"
-              size={10}
-              color={seatsLow ? "#E53E3E" : "#38A169"}
-            />
-            <Text
-              style={[
-                S.routeSeats,
-                { color: seatsLow ? "#E53E3E" : "#38A169" },
-              ]}
-            >
-              {seatsLow
-                ? t("home.onlySeatsLeft", { count: trip.seatsAvailable })
-                : t("home.seatsLeft", { count: trip.seatsAvailable })}
-            </Text>
-          </View>
         </View>
         <TouchableOpacity
           style={S.bookBtn}
-          onPress={onBook}
+          onPress={onSearch}
           activeOpacity={0.85}
         >
-          <Text style={S.bookBtnText}>{t("home.bookNow")}</Text>
+          <Text style={S.bookBtnText}>{t("common.search")}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -209,17 +229,11 @@ function RecommendCard({
   onBook,
   t,
 }: {
-  rec: ReturnType<typeof getMockRecommendations>[0];
+  rec: Recommendation;
   onBook: () => void;
   t: (k: string) => string;
 }) {
-  const { trip, reason } = rec;
-  const reasonLabel =
-    reason === "past_route"
-      ? t("home.pastRoute")
-      : reason === "popular"
-        ? t("home.popularThisWeek")
-        : t("home.trendingRoute");
+  const { trip, reason, reasonLabel } = rec;
   const reasonColor =
     reason === "past_route"
       ? "#0A4370"
@@ -317,9 +331,15 @@ export default function HomeScreen() {
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(30)).current;
 
-  const recommendations = USE_MOCK ? getMockRecommendations() : [];
-  const popularTrips = USE_MOCK ? MOCK_TRIPS.slice(0, 4) : [];
-  const companies = USE_MOCK ? MOCK_COMPANIES : [];
+  const { companies } = useCompanies();
+  const { recommendations } = useRecommendations();
+  const { routes: popularRoutes } = usePopularRoutes();
+
+  const goBook = (trip: Trip) =>
+    router.push({
+      pathname: "/booking" as never,
+      params: { trip: JSON.stringify(trip) },
+    });
 
   useEffect(() => {
     Animated.parallel([
@@ -338,11 +358,6 @@ export default function HomeScreen() {
   }, [fade, slide]);
 
   const goSearch = () => router.push("/(tabs)/explore" as never);
-  const goBook = (trip: (typeof MOCK_TRIPS)[0]) =>
-    router.push({
-      pathname: "/booking" as never,
-      params: { trip: JSON.stringify(trip) },
-    });
 
   return (
     <View style={S.root}>
@@ -356,35 +371,30 @@ export default function HomeScreen() {
         <View style={S.heroDecor2} />
         <View style={S.heroTop}>
           <View style={S.heroBrand}>
-            <View style={S.heroBrandIcon}>
-              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 13 }}>
-                K
-              </Text>
-            </View>
+            <RNImage
+              source={require("../../assets/images/icon.png")}
+              style={S.heroBrandIcon}
+              resizeMode="contain"
+            />
             <Text style={S.heroBrandName}>Katisha</Text>
           </View>
-          <TouchableOpacity style={S.heroNotif} onPress={goSearch}>
+          {/* <TouchableOpacity style={S.heroNotif} onPress={goSearch}>
             <Ionicons name="search-outline" size={20} color="#fff" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
         <Text style={S.heroGreeting}>{greeting(user?.first_name, t)}</Text>
         <Text style={S.heroTitle}>{t("home.whereTravel")}</Text>
         <Text style={S.heroTagline}>{t("home.tagline")}</Text>
 
         {/* Quick search CTA */}
-        <TouchableOpacity
-          style={S.quickSearch}
-          onPress={goSearch}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="search-outline" size={16} color="#6A717D" />
-          <Text style={S.quickSearchText}>
-            {t("home.departurePlaceholder")}
-          </Text>
-          <View style={S.quickSearchBtn}>
-            <Ionicons name="arrow-forward" size={14} color="#fff" />
-          </View>
-        </TouchableOpacity>
+        <QuickSearch
+          onSelect={(loc) =>
+            router.push({
+              pathname: "/(tabs)/explore" as never,
+              params: { from: loc.name, fromId: loc.id },
+            })
+          }
+        />
       </View>
 
       {/* ── Content sheet ── */}
@@ -397,9 +407,6 @@ export default function HomeScreen() {
         <Animated.View
           style={{ opacity: fade, transform: [{ translateY: slide }] }}
         >
-          {/* Promo */}
-          <PromoBanner t={t} />
-
           {/* Featured companies */}
           {companies.length > 0 && (
             <View style={{ marginTop: 28 }}>
@@ -430,7 +437,7 @@ export default function HomeScreen() {
           )}
 
           {/* Recommended */}
-          {recommendations.length > 0 && (
+          {recommendations.length > 0 ? (
             <View style={{ marginTop: 28 }}>
               <SectionHeader
                 title={t("home.recommendedForYou")}
@@ -451,21 +458,34 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
             </View>
+          ) : (
+            <View style={S.emptyRec}>
+              <Ionicons name="sparkles-outline" size={28} color="#CBD5E0" />
+              <Text style={S.emptyRecTitle}>{t("home.noRecommendations")}</Text>
+              <Text style={S.emptyRecDesc}>
+                {t("home.noRecommendationsDesc")}
+              </Text>
+            </View>
           )}
 
           {/* Popular routes */}
-          {popularTrips.length > 0 && (
+          {popularRoutes.length > 0 && (
             <View style={{ marginTop: 28 }}>
               <SectionHeader
                 title={t("home.popularRoutes")}
                 subtitle={t("home.popularRoutesSubtitle")}
                 onViewAll={goSearch}
               />
-              {popularTrips.map((trip) => (
+              {popularRoutes.map((route, i) => (
                 <PopularRouteCard
-                  key={trip.id}
-                  trip={trip}
-                  onBook={() => goBook(trip)}
+                  key={i}
+                  route={route}
+                  onSearch={() =>
+                    router.push({
+                      pathname: "/(tabs)/explore" as never,
+                      params: { from: route.from.name, to: route.to.name },
+                    })
+                  }
                   t={t}
                 />
               ))}
@@ -515,9 +535,6 @@ const S = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   heroBrandName: {
     color: "rgba(255,255,255,0.75)",
@@ -569,7 +586,7 @@ const S = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  quickSearchText: { flex: 1, fontSize: 14, color: "#A0A8B4" },
+  quickSearchInput: { flex: 1, fontSize: 14, color: "#1A202C" },
   quickSearchBtn: {
     width: 36,
     height: 36,
@@ -577,6 +594,68 @@ const S = StyleSheet.create({
     backgroundColor: "#0A4370",
     alignItems: "center",
     justifyContent: "center",
+  },
+  quickDropdown: {
+    position: "absolute",
+    top: 58,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0A4370",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+    overflow: "hidden",
+  },
+  quickDropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F2F5",
+  },
+  quickDropdownIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: "#EEF4FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickDropdownName: { fontSize: 13, fontWeight: "700", color: "#1A202C" },
+  quickDropdownCity: { fontSize: 11, color: "#6A717D", marginTop: 1 },
+  quickDropdownCode: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#0A4370",
+    backgroundColor: "#EEF4FF",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  // Empty recommendations
+  emptyRec: {
+    marginTop: 28,
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  emptyRecTitle: { fontSize: 14, fontWeight: "800", color: "#1A202C" },
+  emptyRecDesc: {
+    fontSize: 12,
+    color: "#6A717D",
+    textAlign: "center",
+    lineHeight: 18,
   },
 
   // Sheet
@@ -598,61 +677,6 @@ const S = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: "800", color: "#1A202C" },
   sectionSubtitle: { fontSize: 12, color: "#6A717D", marginTop: 2 },
   viewAll: { fontSize: 12, fontWeight: "700", color: "#0A4370", marginTop: 2 },
-
-  // Promo
-  promo: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0A4370",
-    borderRadius: 20,
-    padding: 18,
-    gap: 14,
-    overflow: "hidden",
-  },
-  promoGlow: {
-    position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    right: -40,
-    top: -40,
-  },
-  promoBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    alignSelf: "flex-start",
-    marginBottom: 6,
-  },
-  promoBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 0.5,
-  },
-  promoTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#fff",
-    lineHeight: 20,
-  },
-  promoSubtitle: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.65)",
-    marginTop: 3,
-  },
-  promoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  promoBtnText: { fontSize: 12, fontWeight: "800", color: "#0A4370" },
 
   // Company card
   companyCard: {

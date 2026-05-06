@@ -17,20 +17,73 @@ import {
 import { AuthButton } from "../../components/auth/AuthButton";
 import { AuthInput } from "../../components/auth/AuthInput";
 import { useResetPassword } from "../../hooks/useResetPassword";
+import { forgotPasswordRequest } from "../../services/auth.service";
 import { isStrongPassword } from "../../utils/validation";
 
 const { width } = Dimensions.get("window");
 
+// ─── Resend OTP row ───────────────────────────────────────────────────────────
+function ResendOtpRow({ identifier }: { identifier: string }) {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleResend = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await forgotPasswordRequest({ identifier });
+      setSent(true);
+      setTimeout(() => setSent(false), 5000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to resend.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ alignItems: "center", marginTop: 16 }}>
+      {sent ? (
+        <Text style={{ fontSize: 13, color: "#38A169", fontWeight: "600" }}>
+          ✓ New code sent
+        </Text>
+      ) : (
+        <TouchableOpacity onPress={handleResend} disabled={loading}>
+          <Text
+            style={{
+              fontSize: 13,
+              color: loading ? "#A0A8B4" : "#0A4370",
+              fontWeight: "600",
+            }}
+          >
+            {loading ? t("common.loading") : t("auth.resendCode")}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {!!error && (
+        <Text style={{ fontSize: 12, color: "#E53E3E", marginTop: 4 }}>
+          {error}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { token } = useLocalSearchParams<{ token?: string }>();
+  // identifier comes from forgot-password redirect; otp is entered by the user
+  const { identifier } = useLocalSearchParams<{ identifier?: string }>();
   const { isLoading, error, done, resetPassword, clearError } =
     useResetPassword();
 
+  const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
+    otp?: string;
     newPassword?: string;
     confirmPassword?: string;
   }>({});
@@ -101,6 +154,8 @@ export default function ResetPasswordScreen() {
 
   const validate = () => {
     const errs: typeof fieldErrors = {};
+    if (!otp.trim() || otp.trim().length < 6)
+      errs.otp = "Enter the 6-digit OTP from your SMS or email.";
     if (!newPassword)
       errs.newPassword =
         t("auth.newPasswordRequired") ?? "New password is required.";
@@ -121,11 +176,11 @@ export default function ResetPasswordScreen() {
       return;
     }
     setFieldErrors({});
-    if (!token) {
-      setFieldErrors({ newPassword: t("auth.noTokenFound") });
+    if (!identifier) {
+      setFieldErrors({ otp: t("auth.noTokenFound") });
       return;
     }
-    await resetPassword(token, newPassword);
+    await resetPassword(otp.trim(), identifier, newPassword);
   };
 
   const rules = [
@@ -198,7 +253,7 @@ export default function ResetPasswordScreen() {
             <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
             <Text style={styles.subtitle}>{t("auth.newPasswordSubtitle")}</Text>
 
-            {!token && (
+            {(!otp.trim() || !identifier) && (
               <View style={styles.warnBanner}>
                 <Ionicons name="warning-outline" size={16} color="#B45309" />
                 <Text style={styles.warnText}>{t("auth.noTokenFound")}</Text>
@@ -226,6 +281,20 @@ export default function ResetPasswordScreen() {
             ) : null}
 
             <View style={{ marginTop: 20 }}>
+              {/* OTP field — user enters the code received via SMS/email */}
+              <AuthInput
+                label="OTP Code"
+                placeholder="Enter 6-digit code"
+                value={otp}
+                onChangeText={(v) => {
+                  setOtp(v.replace(/\D/g, "").slice(0, 6));
+                  setFieldErrors((e) => ({ ...e, otp: undefined }));
+                }}
+                error={fieldErrors.otp}
+                keyboardType="number-pad"
+                icon="keypad-outline"
+                testID="reset-otp-input"
+              />
               <AuthInput
                 label={t("auth.newPassword")}
                 placeholder={t("auth.newPasswordPlaceholder")}
@@ -274,9 +343,12 @@ export default function ResetPasswordScreen() {
                 label={t("auth.updatePassword")}
                 onPress={handleSubmit}
                 loading={isLoading}
-                disabled={isLoading || !token}
+                disabled={isLoading || !otp.trim() || !identifier}
               />
             </View>
+
+            {/* Resend OTP — calls forgot-password again to issue a fresh code */}
+            {identifier && <ResendOtpRow identifier={identifier} />}
           </Animated.View>
         )}
 

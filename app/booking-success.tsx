@@ -1,3 +1,4 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { useBookings } from "@/hooks/use-bookings";
 import { Booking } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,7 +7,6 @@ import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Animated,
-    Platform,
     ScrollView,
     StatusBar,
     Text,
@@ -98,17 +98,11 @@ export default function BookingSuccessScreen() {
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
-      <View
-        className="bg-primary px-5 pb-5"
-        style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
-      >
-        <Text className="text-[22px] font-black text-white">
-          {t("bookingSuccess.confirmed")}
-        </Text>
-        <Text className="text-[13px] text-white/60 mt-1">
-          {t("bookingSuccess.seatSecured")}
-        </Text>
-      </View>
+      <AppBar
+        title={t("bookingSuccess.confirmed")}
+        subtitle={t("bookingSuccess.seatSecured")}
+        showBack={false}
+      />
 
       <ScrollView
         className="flex-1"

@@ -1,3 +1,4 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { useProfile } from "@/hooks/use-profile";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -5,14 +6,13 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Platform,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    StatusBar,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 function Avatar({
@@ -124,7 +124,8 @@ function SectionHeader({ title }: { title: string }) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { profile, loading, error, load } = useProfile();
+  const { profile, loading, load } = useProfile();
+  const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const logoutAll = useAuthStore((s) => s.logoutAll);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -132,16 +133,31 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load().then(() => {
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
+      if (!user) return; // not authenticated yet
+      load()
+        .then(() => {
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }).start();
+        })
+        .catch(() => {
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }).start();
+        });
       return () => fadeAnim.setValue(0);
-    }, [load, fadeAnim]),
+    }, [load, fadeAnim, user]),
   );
+
+  // Fallback: use auth store user data when profile API hasn't loaded yet
+  const displayName =
+    profile?.name ?? (user ? `${user.first_name} ${user.last_name}` : "");
+  const displayPhone = profile?.phone ?? user?.phone_number ?? "";
+  const displayEmail = profile?.email ?? user?.email ?? "";
 
   function nav(path: string) {
     router.push(path as never);
@@ -151,39 +167,15 @@ export default function ProfileScreen() {
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
 
-      {/* Header */}
-      <View
-        className="bg-primary px-5 pb-6"
-        style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
-      >
-        <Text className="text-[26px] font-black text-white">
-          {t("profile.title")}
-        </Text>
-        <Text className="text-[13px] text-white/60 mt-1">
-          {t("profile.manageAccount")}
-        </Text>
-      </View>
+      <AppBar
+        title={t("profile.title")}
+        subtitle={t("profile.manageAccount")}
+        showBack={false}
+      />
 
-      {loading && !profile ? (
+      {loading && !profile && !user ? (
         <View className="flex-1 items-center justify-center gap-3">
           <ActivityIndicator size="large" color="#0A4370" />
-          <Text className="text-[13px] text-secondary-text">
-            Loading profile...
-          </Text>
-        </View>
-      ) : error && !profile ? (
-        <View className="flex-1 items-center justify-center gap-3 px-10">
-          <Ionicons name="cloud-offline-outline" size={40} color="#6A717D" />
-          <Text className="text-[15px] font-bold text-dark-text text-center">
-            {error}
-          </Text>
-          <TouchableOpacity
-            className="bg-primary px-7 py-3 rounded-xl"
-            onPress={load}
-            activeOpacity={0.8}
-          >
-            <Text className="text-white font-bold text-sm">Retry</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <Animated.ScrollView
@@ -196,20 +188,22 @@ export default function ProfileScreen() {
           <SectionCard>
             <View className="flex-row items-center px-4 py-4 gap-4">
               <Avatar
-                name={profile?.name ?? "?"}
+                name={displayName || "?"}
                 avatar={profile?.avatar}
                 size={64}
               />
               <View className="flex-1">
                 <Text className="text-[17px] font-black text-dark-text">
-                  {profile?.name}
+                  {displayName}
                 </Text>
                 <Text className="text-[13px] text-secondary-text mt-0.5">
-                  {profile?.phone}
+                  {displayPhone}
                 </Text>
-                <Text className="text-[12px] text-secondary-text">
-                  {profile?.email}
-                </Text>
+                {!!displayEmail && (
+                  <Text className="text-[12px] text-secondary-text">
+                    {displayEmail}
+                  </Text>
+                )}
               </View>
               <TouchableOpacity
                 className="w-9 h-9 rounded-full bg-overlay items-center justify-center"
@@ -242,10 +236,10 @@ export default function ProfileScreen() {
               label={t("profile.notifications")}
               value={
                 [
-                  profile?.preferences.smsNotifications
+                  profile?.preferences?.smsNotifications
                     ? t("profile.sms")
                     : null,
-                  profile?.preferences.emailNotifications
+                  profile?.preferences?.emailNotifications
                     ? t("profile.email")
                     : null,
                 ]
@@ -258,7 +252,7 @@ export default function ProfileScreen() {
               icon="language-outline"
               label={t("profile.language")}
               value={t(
-                `language.${profile?.preferences.language === "rw" ? "kinyarwanda" : profile?.preferences.language === "fr" ? "french" : "english"}`,
+                `language.${profile?.preferences?.language === "rw" ? "kinyarwanda" : profile?.preferences?.language === "fr" ? "french" : "english"}`,
               )}
               onPress={() => nav("/profile/language")}
             />

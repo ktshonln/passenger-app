@@ -1,34 +1,27 @@
-import { fetchRecommendations, Recommendation } from "@/lib/api";
-import { getMockRecommendations, mockDelay } from "@/src/services/mock.data";
+import { fetchRecommendations, getAuthToken, Recommendation } from "@/lib/api";
+import { useAuthStore } from "@/src/store/auth.store";
 import { useCallback, useEffect, useState } from "react";
-
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 export function useRecommendations() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const load = useCallback(async () => {
+    if (!isAuthenticated || !getAuthToken()) return;
     setLoading(true);
-    setError(null);
     try {
-      if (USE_MOCK) {
-        await mockDelay(500);
-        setRecommendations(getMockRecommendations());
-      } else {
-        setRecommendations(await fetchRecommendations());
-      }
+      setRecommendations(await fetchRecommendations());
     } catch {
-      setError("Failed to load recommendations.");
+      /* non-critical */
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  return { recommendations, loading, error };
+  return { recommendations, loading };
 }

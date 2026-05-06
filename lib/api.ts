@@ -9,7 +9,7 @@
  */
 
 const BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.katisha.app";
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.katisha.online";
 
 // ─── Auth token ───────────────────────────────────────────────────────────────
 
@@ -78,6 +78,10 @@ export interface TripSearchParams {
   to: string;
   date: string;
   operatorId?: string;
+  timeFrom?: string; // "HH:mm" e.g. "06:00"
+  timeTo?: string; // "HH:mm" e.g. "12:00"
+  page?: number; // default 1
+  limit?: number; // default 20
 }
 
 export interface PopularRoute {
@@ -123,6 +127,15 @@ export interface Booking {
 }
 
 export type PaymentMethod = "momo" | "airtel" | "card";
+
+export interface PublicOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  org_type: string;
+  logo_path: string | null;
+  story: string | null;
+}
 
 export interface PaymentPayload {
   bookingId: string;
@@ -192,10 +205,11 @@ function logAudit(
 
 export async function fetchLocations(
   query: string,
+  signal?: AbortSignal,
 ): Promise<LocationSuggestion[]> {
   const res = await fetch(
     `${BASE_URL}/api/v1/locations?q=${encodeURIComponent(query)}`,
-    { headers: authHeaders() },
+    { headers: authHeaders(), signal },
   );
   if (!res.ok) throw new Error(`fetchLocations failed: ${res.status}`);
   return res.json();
@@ -219,21 +233,81 @@ export async function fetchCompany(id: string): Promise<Company> {
   return res.json();
 }
 
+export async function fetchPublicOrganizations(
+  query = "",
+  page = 1,
+  limit = 50,
+): Promise<PublicOrganization[]> {
+  // ── Mock mode ──────────────────────────────────────────────────────────────
+  if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+    const { MOCK_COMPANIES } = await import("../src/services/mock.data");
+    return MOCK_COMPANIES.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.shortName,
+      org_type: "bus_company",
+      logo_path: c.logoUrl,
+      story: null,
+    }));
+  }
+
+  // ── Real API ───────────────────────────────────────────────────────────────
+  const qs = new URLSearchParams({
+    q: query,
+    page: String(page),
+    limit: String(limit),
+  });
+  const res = await fetch(`${BASE_URL}/api/v1/organizations/public?${qs}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok)
+    throw new Error(`fetchPublicOrganizations failed: ${res.status}`);
+  const body = await res.json();
+  if (!Array.isArray(body)) {
+    console.warn("[fetchPublicOrganizations] unexpected response shape:", body);
+    return [];
+  }
+  // TODO: update mapping once real response shape is confirmed
+  return body as PublicOrganization[];
+}
+
 // ─── Trips ────────────────────────────────────────────────────────────────────
 
 export async function fetchTrips(params: TripSearchParams): Promise<Trip[]> {
+  const page = params.page ?? 1;
+  const limit = params.limit ?? 20;
+
+  // ── Mock mode ──────────────────────────────────────────────────────────────
+  if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+    const { MOCK_TRIPS } = await import("../src/services/mock.data");
+    const start = (page - 1) * limit;
+    return MOCK_TRIPS.slice(start, start + limit);
+  }
+
+  // ── Real API ───────────────────────────────────────────────────────────────
   logAudit("SEARCH", "TRIP", { query_params: params });
   const qs = new URLSearchParams({
     from: params.from,
     to: params.to,
     date: params.date,
+    page: String(page),
+    limit: String(limit),
     ...(params.operatorId ? { operator_id: params.operatorId } : {}),
+    ...(params.timeFrom ? { time_from: params.timeFrom } : {}),
+    ...(params.timeTo ? { time_to: params.timeTo } : {}),
   });
   const res = await fetch(`${BASE_URL}/api/v1/trips?${qs}`, {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`fetchTrips failed: ${res.status}`);
-  return res.json();
+
+  // Handle both plain array and { data, meta } envelope responses
+  const body = await res.json();
+  if (Array.isArray(body)) {
+    return body as Trip[];
+  }
+  // Envelope shape: { data: Trip[], meta?: { total: number } }
+  return (body.data ?? []) as Trip[];
 }
 
 // ─── Popular routes ───────────────────────────────────────────────────────────

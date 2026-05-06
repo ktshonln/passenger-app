@@ -1,4 +1,4 @@
-import { Company } from "@/src/services/mock.data";
+import { Company } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef } from "react";
 import {
@@ -59,7 +59,7 @@ function CompanyChip({
           { transform: [{ scale }] },
         ]}
       >
-        <Text style={styles.chipLogo}>{company.logo}</Text>
+        <Text style={styles.chipLogo}>{company.logoUrl}</Text>
         <View style={{ flex: 1 }}>
           <Text
             style={[styles.chipName, selected && { color: "#fff" }]}

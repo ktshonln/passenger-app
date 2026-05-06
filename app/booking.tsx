@@ -1,3 +1,4 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { createBooking, Trip } from "@/lib/api";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -359,27 +360,23 @@ export default function BookingScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
 
       {/* Header */}
+      <AppBar
+        title={stepTitles[step]}
+        subtitle={stepSubs[step]}
+        onBack={() =>
+          step === "details"
+            ? router.back()
+            : setStep(step === "payment" ? "password" : "details")
+        }
+      />
+      {/* Step progress */}
       <View
-        style={[S.header, { paddingTop: Platform.OS === "android" ? 48 : 60 }]}
+        style={{
+          backgroundColor: "#0A4370",
+          paddingHorizontal: 20,
+          paddingBottom: 14,
+        }}
       >
-        <TouchableOpacity
-          onPress={() =>
-            step === "details"
-              ? router.back()
-              : setStep(step === "payment" ? "password" : "details")
-          }
-          style={S.backBtn}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={18}
-            color="rgba(255,255,255,0.75)"
-          />
-          <Text style={S.backText}>{t("common.back")}</Text>
-        </TouchableOpacity>
-        <Text style={S.headerTitle}>{stepTitles[step]}</Text>
-        <Text style={S.headerSub}>{stepSubs[step]}</Text>
         <StepBar step={step} />
       </View>
 
@@ -485,11 +482,6 @@ export default function BookingScreen() {
                   error={pwError}
                   icon="lock-closed-outline"
                   secureTextEntry
-                  hint={
-                    process.env.EXPO_PUBLIC_USE_MOCK === "true"
-                      ? "Demo: Demo1234"
-                      : undefined
-                  }
                 />
               </Card>
 

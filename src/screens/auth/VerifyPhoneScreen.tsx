@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { AuthButton } from "../../components/auth/AuthButton";
 import { useAuth } from "../../hooks/useAuth";
+import { resendOtpRequest } from "../../services/auth.service";
 import { validateOtp } from "../../utils/validation";
 
 const { width } = Dimensions.get("window");
@@ -40,6 +41,8 @@ export default function VerifyPhoneScreen() {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [secondsLeft, setSecondsLeft] = useState(otpExpiresIn ?? 300);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendError, setResendError] = useState<string | undefined>();
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const cardY = useRef(new Animated.Value(40)).current;
@@ -122,8 +125,15 @@ export default function VerifyPhoneScreen() {
       return;
     }
     try {
-      await verifyPhone({ user_id: pendingUserId, otp });
-      router.replace("/(tabs)");
+      const loginIdentifier = await verifyPhone({
+        user_id: pendingUserId,
+        otp,
+      });
+      // API returns login_identifier — pre-fill login screen with it
+      router.replace({
+        pathname: "/auth/login" as never,
+        params: { identifier: loginIdentifier },
+      });
     } catch {
       /* error lives in store */
     }
@@ -248,22 +258,53 @@ export default function VerifyPhoneScreen() {
           <View style={styles.resendRow}>
             <Text style={styles.resendText}>{t("auth.didntReceive")}</Text>
             <TouchableOpacity
-              disabled={secondsLeft > 0}
-              onPress={() => {
-                setSecondsLeft(300);
-                setDigits(Array(OTP_LENGTH).fill(""));
+              disabled={secondsLeft > 0 || resendLoading || !pendingUserId}
+              onPress={async () => {
+                if (!pendingUserId) return;
+                setResendLoading(true);
+                setResendError(undefined);
+                try {
+                  await resendOtpRequest({
+                    user_id: pendingUserId,
+                    purpose: "phone_verification",
+                  });
+                  setSecondsLeft(300);
+                  setDigits(Array(OTP_LENGTH).fill(""));
+                } catch (e: unknown) {
+                  setResendError(
+                    e instanceof Error
+                      ? e.message
+                      : "Failed to resend. Try again.",
+                  );
+                } finally {
+                  setResendLoading(false);
+                }
               }}
             >
               <Text
                 style={[
                   styles.resendLink,
-                  secondsLeft > 0 && { color: Colors.secondaryText },
+                  (secondsLeft > 0 || resendLoading) && {
+                    color: Colors.secondaryText,
+                  },
                 ]}
               >
-                {t("auth.resendCode")}
+                {resendLoading ? t("common.loading") : t("auth.resendCode")}
               </Text>
             </TouchableOpacity>
           </View>
+          {!!resendError && (
+            <Text
+              style={{
+                fontSize: 12,
+                color: Colors.error,
+                textAlign: "center",
+                marginTop: 6,
+              }}
+            >
+              {resendError}
+            </Text>
+          )}
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>

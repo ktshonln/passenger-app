@@ -1,7 +1,6 @@
 import { Colors } from "@/constants/colors";
-import { DEMO_CREDENTIALS } from "@/src/services/mock.data";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -9,6 +8,7 @@ import {
     Dimensions,
     KeyboardAvoidingView,
     Platform,
+    Image as RNImage,
     ScrollView,
     StyleSheet,
     Text,
@@ -26,8 +26,12 @@ export default function LoginScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { login, isLoading, error, clearError } = useAuth();
+  // Pre-filled from verify-phone redirect
+  const { identifier: prefillIdentifier } = useLocalSearchParams<{
+    identifier?: string;
+  }>();
 
-  const [identifier, setIdentifier] = useState("");
+  const [identifier, setIdentifier] = useState(prefillIdentifier ?? "");
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
     identifier?: string;
@@ -72,14 +76,6 @@ export default function LoginScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isMock = process.env.EXPO_PUBLIC_USE_MOCK === "true";
-
-  const fillDemo = () => {
-    setIdentifier(DEMO_CREDENTIALS.identifier);
-    setPassword(DEMO_CREDENTIALS.password);
-    setFieldErrors({});
-  };
-
   const handleLogin = async () => {
     const errors = validateLogin(identifier, password);
     if (Object.keys(errors).length) {
@@ -111,9 +107,11 @@ export default function LoginScreen() {
           }}
         >
           <View style={styles.logoRing}>
-            <View style={styles.logoInner}>
-              <Ionicons name="bus" size={30} color={Colors.primary} />
-            </View>
+            <RNImage
+              source={require("../../../assets/images/icon.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.brandName}>{t("common.appName")}</Text>
           <Text style={styles.brandTagline}>{t("auth.tagline")}</Text>
@@ -170,27 +168,6 @@ export default function LoginScreen() {
           >
             <Text style={styles.forgotText}>{t("auth.forgotPassword")}</Text>
           </TouchableOpacity>
-
-          {isMock && (
-            <TouchableOpacity
-              style={styles.demoBanner}
-              onPress={fillDemo}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="flask-outline" size={15} color="#92400e" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.demoTitle}>Demo mode — tap to fill</Text>
-                <Text style={styles.demoCredentials}>
-                  {DEMO_CREDENTIALS.identifier} · {DEMO_CREDENTIALS.password}
-                </Text>
-              </View>
-              <Ionicons
-                name="arrow-forward-circle-outline"
-                size={18}
-                color="#92400e"
-              />
-            </TouchableOpacity>
-          )}
 
           <AuthButton
             label={t("auth.signIn")}
@@ -252,13 +229,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
-  logoInner: {
+  logoImage: {
     width: 62,
     height: 62,
-    borderRadius: 31,
-    backgroundColor: Colors.white,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 16,
   },
   brandName: {
     fontSize: 28,
@@ -314,18 +288,4 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: 14, color: Colors.secondaryText },
   footerLink: { fontSize: 14, color: Colors.primary, fontWeight: "700" },
-  demoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#fffbeb",
-    borderWidth: 1,
-    borderColor: "#fcd34d",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    marginBottom: 16,
-  },
-  demoTitle: { fontSize: 12, fontWeight: "700", color: "#92400e" },
-  demoCredentials: { fontSize: 11, color: "#b45309", marginTop: 1 },
 });

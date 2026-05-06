@@ -1,3 +1,4 @@
+import { AppBar } from "@/components/ui/app-bar";
 import { useLanguage } from "@/src/hooks/useLanguage";
 import { Locale } from "@/src/i18n";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,7 +7,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Platform,
     ScrollView,
     StatusBar,
     Text,
@@ -31,27 +31,10 @@ export default function LanguageScreen() {
     <View className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
 
-      <View
-        className="bg-primary px-5 pb-5"
-        style={{ paddingTop: Platform.OS === "android" ? 48 : 60 }}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="flex-row items-center gap-1.5 mb-3"
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={18} color="rgba(255,255,255,0.7)" />
-          <Text className="text-[13px] text-white/70 font-medium">
-            {t("common.back")}
-          </Text>
-        </TouchableOpacity>
-        <Text className="text-[22px] font-black text-white">
-          {t("language.title")}
-        </Text>
-        <Text className="text-[13px] text-white/60 mt-1">
-          {t("language.selectLanguage")}
-        </Text>
-      </View>
+      <AppBar
+        title={t("language.title")}
+        subtitle={t("language.selectLanguage")}
+      />
 
       <ScrollView
         className="flex-1"

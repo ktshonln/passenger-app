@@ -1,5 +1,7 @@
+import { router } from "expo-router";
 import { useState } from "react";
 import { resetPasswordRequest } from "../services/auth.service";
+import { useAuthStore } from "../store/auth.store";
 import { isStrongPassword } from "../utils/validation";
 
 interface State {
@@ -15,8 +17,13 @@ export function useResetPassword() {
     done: false,
   });
 
-  const resetPassword = async (token: string, newPassword: string) => {
-    // Client-side strength check before hitting the network
+  // After reset, server revokes all sessions — clear local auth too
+
+  const resetPassword = async (
+    otp: string,
+    identifier: string,
+    newPassword: string,
+  ) => {
     if (!isStrongPassword(newPassword)) {
       setState((s) => ({
         ...s,
@@ -27,9 +34,24 @@ export function useResetPassword() {
     }
     setState({ isLoading: true, error: null, done: false });
     try {
-      await resetPasswordRequest({ token, new_password: newPassword });
-      // Success — no tokens issued, user must re-login
+      await resetPasswordRequest({
+        otp,
+        identifier,
+        new_password: newPassword,
+      });
       setState({ isLoading: false, error: null, done: true });
+      // Server revoked all sessions — clear local auth state and go to login
+      // Small delay so the success screen is visible briefly
+      setTimeout(() => {
+        useAuthStore.setState({
+          user: null,
+          token: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          error: null,
+        });
+        router.replace("/auth/login");
+      }, 2000);
     } catch (e: unknown) {
       const msg =
         e instanceof Error
