@@ -9,58 +9,65 @@ global.fetch = mockFetch;
 
 beforeEach(() => mockFetch.mockClear());
 
-const VALID_PAYLOAD = { token: "raw-token-abc", new_password: "NewPass1" };
+const VALID_PAYLOAD = {
+  otp: "123456",
+  identifier: "test@example.com",
+  new_password: "NewPass1",
+};
 
 // ─── resetPasswordRequest — real API path ─────────────────────────────────────
 
 describe("resetPasswordRequest — API", () => {
-  it("calls POST /api/v1/auth/reset-password with token and new_password", async () => {
+  it("calls POST /api/v1/auth/reset-password with otp, identifier and new_password", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ message: "Password updated. Please log in again." }),
+      status: 204,
     });
 
-    const result = await resetPasswordRequest(VALID_PAYLOAD);
+    await resetPasswordRequest(VALID_PAYLOAD);
 
     const [url, options] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/v1/auth/reset-password");
     expect(options.method).toBe("POST");
     expect(options.headers["X-Client-Type"]).toBe("mobile");
     const body = JSON.parse(options.body);
-    expect(body.token).toBe("raw-token-abc");
+    expect(body.otp).toBe("123456");
+    expect(body.identifier).toBe("test@example.com");
     expect(body.new_password).toBe("NewPass1");
-    expect(result.message).toBe("Password updated. Please log in again.");
   });
 
   it("throws INVALID_TOKEN error on 400", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 400 });
     await expect(resetPasswordRequest(VALID_PAYLOAD)).rejects.toThrow(
-      "Reset link is invalid or has already been used.",
+      "Request is invalid or has already been used.",
     );
   });
 
   it("throws TOKEN_EXPIRED error on 410", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 410 });
     await expect(resetPasswordRequest(VALID_PAYLOAD)).rejects.toThrow(
-      "Reset link has expired. Please request a new one.",
+      "OTP has expired. Please request a new one.",
     );
   });
 
   it("throws VALIDATION_ERROR on 422", async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 422 });
     await expect(
-      resetPasswordRequest({ token: "t", new_password: "weak" }),
+      resetPasswordRequest({
+        otp: "123456",
+        identifier: "test@example.com",
+        new_password: "weak",
+      }),
     ).rejects.toThrow("Password is too weak");
   });
 
   it("does NOT return any token in the response", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ message: "Password updated. Please log in again." }),
+      status: 204,
     });
     const result = await resetPasswordRequest(VALID_PAYLOAD);
-    expect((result as Record<string, unknown>).access_token).toBeUndefined();
-    expect((result as Record<string, unknown>).token).toBeUndefined();
+    expect(result).toBeUndefined();
   });
 });
 

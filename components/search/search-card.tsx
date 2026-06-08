@@ -3,11 +3,11 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Animated,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { DatePicker } from "./date-picker";
 import { LocationInput } from "./location-input";
@@ -144,7 +144,7 @@ export function SearchCard({ onSearch, loading }: Props) {
           </View>
 
           {/* Inputs */}
-          <View className="flex-1 gap-2.5">
+          <View className="flex-1 gap-2.5" style={{ zIndex: 99999 }}>
             <LocationInput
               label={t("home.from")}
               placeholder={t("home.departurePlaceholder")}

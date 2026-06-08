@@ -1,5 +1,6 @@
 import { AppBar } from "@/components/ui/app-bar";
 import { useProfile } from "@/hooks/use-profile";
+import { useWallet } from "@/src/hooks/use-wallet";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -129,27 +130,29 @@ export default function ProfileScreen() {
   const logout = useAuthStore((s) => s.logout);
   const logoutAll = useAuthStore((s) => s.logoutAll);
   const isLoading = useAuthStore((s) => s.isLoading);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const { balance } = useWallet();
+  const fadeAnim = useRef(new Animated.Value(user ? 1 : 0)).current;
 
   useFocusEffect(
     useCallback(() => {
-      if (!user) return; // not authenticated yet
-      load()
-        .then(() => {
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }).start();
-        })
-        .catch(() => {
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }).start();
-        });
-      return () => fadeAnim.setValue(0);
+      if (!user) return;
+
+      // Start animation immediately for smooth transition
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+
+      // Refresh data in the background
+      load().catch(() => {
+        // Silent catch for background refresh
+      });
+
+      return () => {
+        // Optionally reset if you want it to fade in every time
+        // fadeAnim.setValue(0); 
+      };
     }, [load, fadeAnim, user]),
   );
 
@@ -173,18 +176,14 @@ export default function ProfileScreen() {
         showBack={false}
       />
 
-      {loading && !profile && !user ? (
-        <View className="flex-1 items-center justify-center gap-3">
-          <ActivityIndicator size="large" color="#0A4370" />
-        </View>
-      ) : (
-        <Animated.ScrollView
-          style={{ opacity: fadeAnim }}
-          className="flex-1"
-          contentContainerStyle={{ padding: 16, paddingBottom: 140 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Profile card */}
+      {/* Remove blocking loader to show cached data immediately */}
+      <Animated.ScrollView
+        style={{ opacity: fadeAnim }}
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 140 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Profile card */}
           <SectionCard>
             <View className="flex-row items-center px-4 py-4 gap-4">
               <Avatar
@@ -217,6 +216,12 @@ export default function ProfileScreen() {
 
           <SectionHeader title={t("profile.account")} />
           <SectionCard>
+            <RowItem
+              icon="wallet-outline"
+              label="Wallet"
+              value={`Balance: ${balance?.available != null ? `RWF ${balance.available.toLocaleString()}` : "—"}`}
+              onPress={() => nav("/wallet")}
+            />
             <RowItem
               icon="person-outline"
               label={t("profile.editProfile")}
@@ -302,7 +307,6 @@ export default function ProfileScreen() {
             />
           </SectionCard>
         </Animated.ScrollView>
-      )}
-    </View>
-  );
-}
+      </View>
+    );
+  }

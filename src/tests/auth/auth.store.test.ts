@@ -144,19 +144,24 @@ describe("auth.store — register", () => {
 // ─── verifyPhone ──────────────────────────────────────────────────────────────
 
 describe("auth.store — verifyPhone", () => {
-  it("authenticates user on correct OTP", async () => {
-    mockVerifyPhoneRequest.mockResolvedValueOnce(MOCK_AUTH_RESPONSE);
+  it("clears pending state and sets loginIdentifier on correct OTP", async () => {
+    mockVerifyPhoneRequest.mockResolvedValueOnce({
+      message: "Phone verified",
+      login_identifier: "+254700000000",
+    });
     useAuthStore.setState({ pendingUserId: "u1", otpExpiresIn: 300 });
 
+    let result = "";
     await act(async () => {
-      await useAuthStore
+      result = await useAuthStore
         .getState()
         .verifyPhone({ user_id: "u1", otp: "123456" });
     });
 
     const state = useAuthStore.getState();
-    expect(state.isAuthenticated).toBe(true);
-    expect(state.token).toBe("test-access-token");
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.loginIdentifier).toBe("+254700000000");
+    expect(result).toBe("+254700000000");
     expect(state.pendingUserId).toBeNull();
     expect(state.otpExpiresIn).toBeNull();
   });

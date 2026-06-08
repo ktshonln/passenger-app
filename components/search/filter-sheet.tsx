@@ -3,13 +3,13 @@ import type { Company } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { DatePicker } from "./date-picker";
 import { LocationInput } from "./location-input";
@@ -121,13 +121,84 @@ export function FilterSheet({
           {/* Header */}
           <View style={S.filterHeader}>
             <Text style={S.filterTitle}>{t("search.filters")}</Text>
-            <TouchableOpacity onPress={onClose} style={S.filterClose}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={S.filterClose}
+              accessibilityRole="button"
+            >
               <Ionicons name="close" size={18} color="#1A202C" />
             </TouchableOpacity>
           </View>
 
           {/* Scrollable content */}
           <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Sort options */}
+            <Text style={S.filterSection}>{t("search.sortBy")}</Text>
+            <View style={S.filterRows}>
+              {[
+                {
+                  key: "time",
+                  label: t("search.sortTime"),
+                  icon: "time-outline",
+                },
+                {
+                  key: "price_asc",
+                  label: t("search.sortPrice"),
+                  icon: "trending-down-outline",
+                },
+                {
+                  key: "price_desc",
+                  label: t("search.sortPriceDesc"),
+                  icon: "trending-up-outline",
+                },
+                {
+                  key: "duration",
+                  label: t("search.sortDuration"),
+                  icon: "hourglass-outline",
+                },
+                {
+                  key: "rating",
+                  label: t("search.sortRating"),
+                  icon: "star-outline",
+                },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    S.filterRow,
+                    draft.sortKey === opt.key && S.filterRowActive,
+                  ]}
+                  onPress={() =>
+                    setDraft((d) => ({ ...d, sortKey: opt.key as SortKey }))
+                  }
+                >
+                  <View style={S.filterRowIcon}>
+                    <Ionicons
+                      name={opt.icon as any}
+                      size={18}
+                      color={draft.sortKey === opt.key ? "#0A4370" : "#6A717D"}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      S.filterRowText,
+                      draft.sortKey === opt.key && S.filterRowTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                  {draft.sortKey === opt.key && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color="#0A4370"
+                      style={{ marginLeft: "auto" }}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
             {/* Origin location */}
             <Text style={S.filterSection}>{t("search.origin")}</Text>
             <LocationInput
@@ -193,6 +264,7 @@ export function FilterSheet({
               style={S.resetBtn}
               onPress={handleReset}
               activeOpacity={0.85}
+              accessibilityRole="button"
             >
               <Text style={S.resetBtnText}>{t("search.reset")}</Text>
             </TouchableOpacity>
@@ -200,6 +272,7 @@ export function FilterSheet({
               style={S.applyBtn}
               onPress={handleApply}
               activeOpacity={0.85}
+              accessibilityRole="button"
             >
               <Text style={S.applyBtnText}>{t("search.applyFilters")}</Text>
             </TouchableOpacity>

@@ -33,13 +33,14 @@ jest.mock("react-i18next", () => ({
 
 // Mock child components to keep tests focused
 jest.mock("../../../components/search/location-input", () => ({
-  LocationInput: ({ label, onChangeText }: any) => {
-    const { TextInput, Text } = require("react-native");
+  LocationInput: ({ label, onChangeText, error }: any) => {
+    const { TextInput, Text, View } = require("react-native");
     return (
-      <>
+      <View>
         <Text>{label}</Text>
         <TextInput testID={`input-${label}`} onChangeText={onChangeText} />
-      </>
+        {!!error && <Text>{error}</Text>}
+      </View>
     );
   },
 }));

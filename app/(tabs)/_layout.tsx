@@ -97,7 +97,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               }
             > = {
               index: { on: "home", off: "home-outline" },
-              explore: { on: "search", off: "search-outline" },
               trips: { on: "ticket", off: "ticket-outline" },
               profile: { on: "person", off: "person-outline" },
             };
@@ -155,7 +154,6 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" options={{ title: t("home.tabTitle") }} />
-      <Tabs.Screen name="explore" options={{ title: t("common.search") }} />
       <Tabs.Screen name="trips" options={{ title: t("myTrips.title") }} />
       <Tabs.Screen name="profile" options={{ title: t("profile.title") }} />
     </Tabs>

@@ -8,7 +8,9 @@ export function usePopularRoutes() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const load = useCallback(async () => {
-    if (!isAuthenticated || !getAuthToken()) return;
+    // In mock mode, load without auth check
+    const isMock = process.env.EXPO_PUBLIC_USE_MOCK === "true";
+    if (!isMock && (!isAuthenticated || !getAuthToken())) return;
     setLoading(true);
     try {
       setRoutes(await fetchPopularRoutes());

@@ -1,8 +1,8 @@
 import { ExampleTripCard } from "@/components/search/example-trip-card";
 import {
-  FilterSheet,
-  FilterValues,
-  defaultFilters,
+    FilterSheet,
+    FilterValues,
+    defaultFilters,
 } from "@/components/search/filter-sheet";
 import { SearchCard } from "@/components/search/search-card";
 import { TripCard } from "@/components/search/trip-card";
@@ -13,20 +13,21 @@ import { useSearchHistory } from "@/hooks/use-search-history";
 import { useTrips } from "@/hooks/use-trips";
 import type { PopularRoute, SearchHistoryItem } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Animated,
-  FlatList,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    FlatList,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 type SortKey = "price_asc" | "price_desc" | "time" | "duration" | "rating";
@@ -112,9 +113,10 @@ function PopularRouteChip({
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
-export default function SearchScreen() {
+export default function SearchResultsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { companies } = useCompanies();
   const { routes: popularRoutes } = usePopularRoutes();
   const {
@@ -132,13 +134,14 @@ export default function SearchScreen() {
     hasMore,
     loadMore,
     retry,
-    reset,
+    searched,
   } = useTrips();
 
-  const [searched, setSearched] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [appliedFilters, setAppliedFilters] =
     useState<FilterValues>(defaultFilters);
+  const [initialSearchDone, setInitialSearchDone] = useState(false);
   const fade = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(20)).current;
 
@@ -158,7 +161,7 @@ export default function SearchScreen() {
     timeFrom?: string;
     timeTo?: string;
   }) {
-    setSearched(true);
+    setSearchModalOpen(false); // Close modal after search
     fade.setValue(0);
     slideUp.setValue(20);
     await searchTrips({
@@ -200,6 +203,53 @@ export default function SearchScreen() {
       }),
     ]).start();
   }
+
+  // Auto-search based on URL parameters
+  useEffect(() => {
+    if (initialSearchDone) return;
+
+    const { q, from, to, fromId, toId, company: companyParam } = params;
+
+    // If we have URL parameters, trigger search automatically
+    if (from || to || q || companyParam) {
+      const searchFrom = (from as string) || (q as string) || "";
+      const searchTo = (to as string) || "";
+
+      // Apply company filter if provided
+      if (companyParam) {
+        setAppliedFilters((f) => ({ ...f, companyId: companyParam as string }));
+      }
+
+      // Trigger search
+      if (searchFrom || searchTo) {
+        handleSearch({
+          from: searchFrom,
+          to: searchTo,
+          date: "",
+          fromLocation: fromId
+            ? {
+                id: fromId as string,
+                name: searchFrom,
+                city: searchFrom,
+                code: "",
+              }
+            : undefined,
+          toLocation: toId
+            ? { id: toId as string, name: searchTo, city: searchTo, code: "" }
+            : undefined,
+        });
+        setInitialSearchDone(true);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    params.q,
+    params.from,
+    params.to,
+    params.fromId,
+    params.toId,
+    params.company,
+  ]);
 
   function handleHistoryPress(item: SearchHistoryItem) {
     handleSearch({
@@ -381,189 +431,261 @@ export default function SearchScreen() {
   );
 
   return (
-    <View style={S.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={S.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#0A4370" />
 
-      {/* ── Unified header: title + filter + search card ── */}
-      <View style={S.header}>
-        {/* Title row */}
-        <View style={S.headerTop}>
-          <View style={S.headerText}>
-            <Text style={S.headerTitle}>{t("search.title")}</Text>
-            <Text style={S.headerSubtitle}>{t("search.subtitle")}</Text>
-          </View>
-          <TouchableOpacity
-            style={[S.filterBtn, activeFilterCount > 0 && S.filterBtnActive]}
-            onPress={() => setFilterOpen(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="options-outline" size={20} color="#fff" />
-            {activeFilterCount > 0 && (
-              <View style={S.filterBadge}>
-                <Text style={S.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        {/* ── Professional App Bar ── */}
+        <View style={S.appBar}>
+          {/* Decorative background elements */}
+          <View style={S.appBarDecor1} />
+          <View style={S.appBarDecor2} />
 
-        {/* Search card sits inside the header */}
-      </View>
-      <SearchCard onSearch={handleSearch} />
-      <FlatList
-        data={searched ? filtered : []}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={S.listContent}
-        keyboardShouldPersistTaps="handled"
-        onEndReached={() => {
-          if (hasMore && !loadingMore) loadMore();
-        }}
-        onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          loadingMore ? (
-            <View style={{ padding: 20, alignItems: "center" }}>
-              <ActivityIndicator color="#0A4370" />
-            </View>
-          ) : searched && !hasMore && searchResults.length > 0 ? (
-            <View style={{ padding: 20, alignItems: "center" }}>
-              <Text style={{ fontSize: 12, color: "#A0A8B4" }}>
-                {t("search.noMoreTrips")}
-              </Text>
-            </View>
-          ) : null
-        }
-        ListHeaderComponent={
-          <View>
-            {/* Pre-search discovery */}
-            {!searched && PreSearchContent}
+          {/* Top row: Back, Title, Filter */}
+          <View style={S.appBarTop}>
+            <TouchableOpacity
+              style={S.appBarBackBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
 
-            {/* Skeleton loading */}
-            {loading && searchResults.length === 0 && <TripCardSkeleton />}
-
-            {/* Error banner */}
-            {error && (
-              <View style={S.errorBanner}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={18}
-                  color="#E53E3E"
-                />
-                <Text style={S.errorBannerText}>{error}</Text>
-                <TouchableOpacity onPress={retry} style={S.retryBtn}>
-                  <Text style={S.retryBtnText}>
-                    {t("search.retry", "Retry")}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Results bar */}
-            {searched && (
-              <Animated.View
-                style={[
-                  S.resultsBar,
-                  { opacity: fade, transform: [{ translateY: slideUp }] },
-                ]}
-              >
-                <View style={S.resultsBarTop}>
-                  <Text style={S.resultsText}>
-                    {t("search.results", { count: filtered.length })}
-                  </Text>
-                  {searched && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        reset();
-                        setSearched(false);
-                      }}
-                      style={S.modifyBtn}
-                    >
-                      <Text style={S.modifyBtnText}>
-                        {t("trips.modifySearch")}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 6 }}
-                >
-                  {(
-                    ["time", "price_asc", "duration", "rating"] as SortKey[]
-                  ).map((k) => (
-                    <TouchableOpacity
-                      key={k}
-                      style={[S.sortPill, sortKey === k && S.sortPillActive]}
-                      onPress={() =>
-                        setAppliedFilters((f) => ({ ...f, sortKey: k }))
-                      }
-                    >
-                      <Text
-                        style={[
-                          S.sortPillText,
-                          sortKey === k && S.sortPillTextActive,
-                        ]}
-                      >
-                        {k === "time"
-                          ? t("search.sortTime")
-                          : k === "price_asc"
-                            ? t("search.sortPrice")
-                            : k === "duration"
-                              ? t("search.sortDuration")
-                              : t("search.sortRating")}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </Animated.View>
-            )}
-          </View>
-        }
-        renderItem={({ item }) => (
-          <Animated.View
-            style={{ opacity: fade, transform: [{ translateY: slideUp }] }}
-          >
-            <TripCard
-              trip={item}
-              company={companies.find((c) => c.name === item.operator)}
-              onBook={() =>
-                router.push({
-                  pathname: "/booking" as never,
-                  params: { trip: JSON.stringify(item) },
-                })
-              }
-              t={t}
-            />
-          </Animated.View>
-        )}
-        ListEmptyComponent={
-          searched && !loading ? (
-            <View style={S.empty}>
-              <Ionicons name="bus-outline" size={52} color="#CBD5E0" />
-              <Text style={S.emptyTitle}>{t("search.noResults")}</Text>
-              <Text style={S.emptyHint}>{t("search.noResultsHint")}</Text>
-              {activeFilterCount > 0 && (
-                <TouchableOpacity
-                  style={S.clearBtn}
-                  onPress={() => setAppliedFilters(defaultFilters)}
-                >
-                  <Text style={S.clearBtnText}>{t("search.clearFilters")}</Text>
-                </TouchableOpacity>
+            <View style={S.appBarCenter}>
+              <Text style={S.appBarTitle}>{t("search.title")}</Text>
+              {searched && (
+                <Text style={S.appBarSubtitle}>
+                  {filtered.length} {filtered.length === 1 ? "trip" : "trips"}
+                </Text>
               )}
             </View>
-          ) : null
-        }
-      />
 
-      <FilterSheet
-        visible={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        onApply={(filters) => setAppliedFilters(filters)}
-        applied={appliedFilters}
-        companies={companies}
-        t={t}
-      />
-    </View>
+            <TouchableOpacity
+              style={[
+                S.appBarFilterBtn,
+                activeFilterCount > 0 && S.appBarFilterBtnActive,
+              ]}
+              onPress={() => setFilterOpen(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="options-outline" size={22} color="#fff" />
+              {activeFilterCount > 0 && (
+                <View style={S.appBarFilterBadge}>
+                  <Text style={S.appBarFilterBadgeText}>
+                    {activeFilterCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Search button */}
+          <TouchableOpacity
+            style={S.appBarSearchBtn}
+            onPress={() => setSearchModalOpen(true)}
+            activeOpacity={0.85}
+          >
+            <View style={S.appBarSearchContent}>
+              <Ionicons name="search" size={20} color="#0A4370" />
+              <Text style={S.appBarSearchText}>
+                {searched
+                  ? t("trips.modifySearch")
+                  : t("home.searchPlaceholder")}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#0A4370" />
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={searched ? filtered : []}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={S.listContent}
+          keyboardShouldPersistTaps="handled"
+          onEndReached={() => {
+            if (hasMore && !loadingMore) loadMore();
+          }}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <ActivityIndicator color="#0A4370" />
+              </View>
+            ) : searched && !hasMore && searchResults.length > 0 ? (
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, color: "#A0A8B4" }}>
+                  {t("search.noMoreTrips")}
+                </Text>
+              </View>
+            ) : null
+          }
+          ListHeaderComponent={
+            <View>
+              {/* Pre-search discovery */}
+              {!searched && PreSearchContent}
+
+              {/* Skeleton loading */}
+              {loading && searchResults.length === 0 && <TripCardSkeleton />}
+
+              {/* Error banner */}
+              {error && (
+                <View style={S.errorBanner}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={18}
+                    color="#E53E3E"
+                  />
+                  <Text style={S.errorBannerText}>{error}</Text>
+                  <TouchableOpacity onPress={retry} style={S.retryBtn}>
+                    <Text style={S.retryBtnText}>
+                      {t("search.retry", "Retry")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Results bar */}
+              {searched && (
+                <Animated.View
+                  style={[
+                    S.resultsBar,
+                    { opacity: fade, transform: [{ translateY: slideUp }] },
+                  ]}
+                >
+                  <View style={S.resultsBarTop}>
+                    <Text style={S.resultsText}>
+                      {t("search.results", { count: filtered.length })}
+                    </Text>
+                    {searched && (
+                      <TouchableOpacity
+                        onPress={() => setSearchModalOpen(true)}
+                        style={S.modifyBtn}
+                      >
+                        <Text style={S.modifyBtnText}>
+                          {t("trips.modifySearch")}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 6 }}
+                  >
+                    {(
+                      ["time", "price_asc", "duration", "rating"] as SortKey[]
+                    ).map((k) => (
+                      <TouchableOpacity
+                        key={k}
+                        style={[S.sortPill, sortKey === k && S.sortPillActive]}
+                        onPress={() =>
+                          setAppliedFilters((f) => ({ ...f, sortKey: k }))
+                        }
+                      >
+                        <Text
+                          style={[
+                            S.sortPillText,
+                            sortKey === k && S.sortPillTextActive,
+                          ]}
+                        >
+                          {k === "time"
+                            ? t("search.sortTime")
+                            : k === "price_asc"
+                              ? t("search.sortPrice")
+                              : k === "duration"
+                                ? t("search.sortDuration")
+                                : t("search.sortRating")}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </Animated.View>
+              )}
+            </View>
+          }
+          renderItem={({ item }) => (
+            <Animated.View
+              style={{ opacity: fade, transform: [{ translateY: slideUp }] }}
+            >
+              <TripCard
+                trip={item}
+                company={companies.find((c) => c.name === item.operator)}
+                onBook={() =>
+                  router.push({
+                    pathname: "/trip-detail" as never,
+                    params: { tripId: item.id },
+                  })
+                }
+                t={t}
+              />
+            </Animated.View>
+          )}
+          ListEmptyComponent={
+            searched && !loading ? (
+              <View style={S.empty}>
+                <Ionicons name="bus-outline" size={52} color="#CBD5E0" />
+                <Text style={S.emptyTitle}>{t("search.noResults")}</Text>
+                <Text style={S.emptyHint}>{t("search.noResultsHint")}</Text>
+                {activeFilterCount > 0 && (
+                  <TouchableOpacity
+                    style={S.clearBtn}
+                    onPress={() => setAppliedFilters(defaultFilters)}
+                  >
+                    <Text style={S.clearBtnText}>
+                      {t("search.clearFilters")}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null
+          }
+        />
+
+        {/* Search Modal */}
+        <Modal
+          visible={searchModalOpen}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setSearchModalOpen(false)}
+        >
+          <View style={S.modalOverlay}>
+            <TouchableOpacity
+              style={S.modalBackdrop}
+              activeOpacity={1}
+              onPress={() => setSearchModalOpen(false)}
+            />
+            <View style={S.modalContent}>
+              <View style={S.modalHeader}>
+                <Text style={S.modalTitle}>{t("home.planJourney")}</Text>
+                <TouchableOpacity
+                  onPress={() => setSearchModalOpen(false)}
+                  style={S.modalCloseBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={24} color="#1A202C" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <SearchCard onSearch={handleSearch} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <FilterSheet
+          visible={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          onApply={(filters) => setAppliedFilters(filters)}
+          applied={appliedFilters}
+          companies={companies}
+          t={t}
+        />
+      </View>
+    </>
   );
 }
 
@@ -571,67 +693,89 @@ export default function SearchScreen() {
 const S = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F7F9FC" },
 
-  // Unified header with gradient effect
-  header: {
+  // Professional App Bar with gradient
+  appBar: {
     backgroundColor: "#0A4370",
-    paddingTop: Platform.OS === "android" ? 48 : 56,
+    paddingTop: Platform.OS === "android" ? 12 : 50,
+    paddingBottom: 16,
     paddingHorizontal: 18,
-    paddingBottom: 20,
+    overflow: "hidden",
     shadowColor: "#0A4370",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 12,
   },
-  headerTop: {
+  appBarDecor1: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    top: -100,
+    right: -80,
+  },
+  appBarDecor2: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    top: 20,
+    left: -60,
+  },
+  appBarTop: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  headerText: { flex: 1 },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: "#fff",
-    letterSpacing: -0.5,
-    textShadowColor: "rgba(0,0,0,0.15)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 4,
-    fontWeight: "500",
-    letterSpacing: 0.2,
-  },
-  filterBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.18)",
+  appBarBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  appBarCenter: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  appBarTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#fff",
+    letterSpacing: -0.3,
+  },
+  appBarSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.7)",
     marginTop: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  filterBtnActive: {
-    backgroundColor: "rgba(255,255,255,0.28)",
+  appBarFilterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  appBarFilterBtnActive: {
+    backgroundColor: "rgba(255,255,255,0.25)",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.5)",
+    borderColor: "rgba(255,255,255,0.4)",
   },
-  filterBadge: {
+  appBarFilterBadge: {
     position: "absolute",
-    top: -5,
-    right: -5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: "#E53E3E",
     alignItems: "center",
     justifyContent: "center",
@@ -643,7 +787,86 @@ const S = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  filterBadgeText: { fontSize: 10, fontWeight: "900", color: "#fff" },
+  appBarFilterBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#fff",
+  },
+  appBarSearchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  appBarSearchContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  appBarSearchText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6A717D",
+    flex: 1,
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalContent: {
+    backgroundColor: "#F7F9FC",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    paddingHorizontal: 18,
+    maxHeight: "90%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#1A202C",
+    letterSpacing: -0.5,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8EDF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   listContent: { paddingBottom: 140 },
 

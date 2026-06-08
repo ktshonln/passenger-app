@@ -43,11 +43,6 @@ beforeEach(() => {
 
 describe("useTrips", () => {
   it("search() resets page to 1 and clears previous results", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    }); // audit
     mockFetch.mockResolvedValueOnce(okResponse(makeTrips(5)));
 
     const { result } = renderHook(() => useTrips());
@@ -63,18 +58,8 @@ describe("useTrips", () => {
 
   it("loadMore() appends results and increments page", async () => {
     // First search: 20 trips (full page → hasMore = true)
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
     mockFetch.mockResolvedValueOnce(okResponse(makeTrips(20)));
     // loadMore: 5 more trips
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
     mockFetch.mockResolvedValueOnce(okResponse(makeTrips(5)));
 
     const { result } = renderHook(() => useTrips());
@@ -94,12 +79,7 @@ describe("useTrips", () => {
   });
 
   it("hasMore is false when API returns < 20 results", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
-    mockFetch.mockResolvedValueOnce(okResponse(makeTrips(7)));
+    mockFetch.mockResolvedValueOnce(okResponse(makeTrips(5)));
 
     const { result } = renderHook(() => useTrips());
 
@@ -111,11 +91,6 @@ describe("useTrips", () => {
   });
 
   it("hasMore is true when API returns exactly 20 results", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
     mockFetch.mockResolvedValueOnce(okResponse(makeTrips(20)));
 
     const { result } = renderHook(() => useTrips());
@@ -128,20 +103,8 @@ describe("useTrips", () => {
   });
 
   it("retry() re-calls fetch with lastParams", async () => {
-    // Initial search fails
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-    // Retry succeeds
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
-    mockFetch.mockResolvedValueOnce(okResponse(makeTrips(3)));
+    // 1. First search fails
+    mockFetch.mockRejectedValueOnce(new Error("Network Error"));
 
     const { result } = renderHook(() => useTrips());
 
@@ -151,21 +114,19 @@ describe("useTrips", () => {
 
     expect(result.current.error).not.toBeNull();
 
+    // 2. Retry succeeds
+    mockFetch.mockResolvedValueOnce(okResponse(makeTrips(5)));
+
     await act(async () => {
       await result.current.retry();
     });
 
-    expect(result.current.trips).toHaveLength(3);
     expect(result.current.error).toBeNull();
+    expect(result.current.trips).toHaveLength(5);
   });
 
   it("sets error on API failure", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
-    mockFetch.mockRejectedValueOnce(new Error("500 error"));
+    mockFetch.mockRejectedValueOnce(new Error("500 Internal Server Error"));
 
     const { result } = renderHook(() => useTrips());
 
@@ -178,25 +139,7 @@ describe("useTrips", () => {
   });
 
   it("loadingMore is true during loadMore fetch", async () => {
-    let resolveLoadMore!: (v: unknown) => void;
-    const loadMorePromise = new Promise((res) => {
-      resolveLoadMore = res;
-    });
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
-    mockFetch.mockResolvedValueOnce(okResponse(makeTrips(20)));
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-      json: async () => ({}),
-    });
-    mockFetch.mockReturnValueOnce(
-      loadMorePromise.then(() => okResponse(makeTrips(5))),
-    );
+    mockFetch.mockResolvedValueOnce(okResponse(makeTrips(20))); // First search
 
     const { result } = renderHook(() => useTrips());
 
@@ -204,14 +147,25 @@ describe("useTrips", () => {
       await result.current.search(PARAMS);
     });
 
-    act(() => {
+    let resolveLoadMore: (val: any) => void;
+    const loadMorePromise = new Promise((resolve) => {
+      resolveLoadMore = resolve;
+    });
+
+    mockFetch.mockReturnValueOnce(loadMorePromise.then(() => okResponse(makeTrips(5))));
+
+    await act(async () => {
       result.current.loadMore();
     });
 
     expect(result.current.loadingMore).toBe(true);
 
     await act(async () => {
-      resolveLoadMore(undefined);
+      resolveLoadMore!(undefined);
+      await loadMorePromise;
     });
+
+    expect(result.current.loadingMore).toBe(false);
+    expect(result.current.trips).toHaveLength(25);
   });
 });

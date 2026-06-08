@@ -77,7 +77,7 @@ export function LocationInput({
   }
 
   return (
-    <View>
+    <View style={{ zIndex: 99999, position: "relative" }}>
       <Text
         style={{
           fontSize: 10,
@@ -121,7 +121,7 @@ export function LocationInput({
         />
         {loading ? (
           <ActivityIndicator size="small" color="#0A4370" />
-        ) : value.length > 0 ? (
+        ) : (value?.length ?? 0) > 0 ? (
           <TouchableOpacity
             onPress={() => onChangeText("")}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -160,7 +160,7 @@ export function LocationInput({
             borderRadius: 18,
             borderWidth: 1.5,
             borderColor: "#E8EDF5",
-            zIndex: 999,
+            zIndex: 99999,
             opacity: dropdownAnim,
             transform: [
               {

@@ -20,7 +20,7 @@ export function useLocations(query: string) {
 
   useEffect(() => {
     // 1. Short query — clear results and bail out
-    if (!query || query.length < 1) {
+    if (!query || query.length < 2) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;

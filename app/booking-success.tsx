@@ -1,3 +1,4 @@
+import { PrintTicketButton } from "@/components/ticket/PrintTicketButton";
 import { AppBar } from "@/components/ui/app-bar";
 import { useBookings } from "@/hooks/use-bookings";
 import { Booking } from "@/lib/api";
@@ -6,12 +7,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    ScrollView,
-    StatusBar,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -101,7 +102,7 @@ export default function BookingSuccessScreen() {
       <AppBar
         title={t("bookingSuccess.confirmed")}
         subtitle={t("bookingSuccess.seatSecured")}
-        showBack={false}
+        showBack={true}
       />
 
       <ScrollView
@@ -227,6 +228,43 @@ export default function BookingSuccessScreen() {
               </View>
             </View>
           </SectionCard>
+
+          {/* Print Ticket */}
+          {booking?.id && (
+            <PrintTicketButton
+              ticketId={booking.id}
+              ticketData={{
+                ticketId: booking.id,
+                companyName: booking.trip?.operator,
+                passengerName: booking.passenger?.fullName,
+                passengerPhone: booking.passenger?.phone,
+                boardingStop:
+                  booking.trip?.from?.name ?? booking.trip?.from?.city,
+                alightingStop: booking.trip?.to?.name ?? booking.trip?.to?.city,
+                departureDate: booking.trip?.departureTime
+                  ? new Date(booking.trip.departureTime).toLocaleDateString(
+                      "en-GB",
+                      { day: "2-digit", month: "short", year: "numeric" },
+                    )
+                  : undefined,
+                departureTime: booking.trip?.departureTime
+                  ? new Date(booking.trip.departureTime).toLocaleTimeString(
+                      [],
+                      { hour: "2-digit", minute: "2-digit" },
+                    )
+                  : undefined,
+                seatsCount: 1,
+                totalAmount:
+                  booking.totalPaid != null
+                    ? `${booking.currency} ${booking.totalPaid.toLocaleString()}`
+                    : undefined,
+                paymentMethod: booking.paymentMethod ?? undefined,
+                busPlate: booking.trip?.busType ?? null,
+                issuedBy: (booking as any).issuedBy,
+              }}
+              style={{ marginBottom: 12 }}
+            />
+          )}
 
           <TouchableOpacity
             className="bg-primary rounded-2xl h-[54px] items-center justify-center mb-3"

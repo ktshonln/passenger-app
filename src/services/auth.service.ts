@@ -151,6 +151,32 @@ function parseError(status: number): string {
 export async function loginRequest(
   payload: LoginPayload,
 ): Promise<AuthResponse> {
+  // ── Mock mode ──────────────────────────────────────────────────────────────
+  if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+    const {
+      DEMO_CREDENTIALS,
+      DEMO_AUTH_RESPONSE,
+      DEMO_USER,
+    } = require("./mock.data");
+    if (
+      payload.identifier === DEMO_CREDENTIALS.identifier &&
+      payload.password === DEMO_CREDENTIALS.password
+    ) {
+      return DEMO_AUTH_RESPONSE;
+    }
+    if (
+      payload.identifier === DEMO_USER.email ||
+      payload.identifier === DEMO_USER.phone_number
+    ) {
+      if (payload.password === DEMO_CREDENTIALS.password) {
+        return DEMO_AUTH_RESPONSE;
+      }
+      throw new Error("INVALID_CREDENTIALS");
+    }
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  // ── Real API ───────────────────────────────────────────────────────────────
   const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
     method: "POST",
     headers: MOBILE_HEADERS,

@@ -3,13 +3,17 @@
  * Covers: skeleton, error banner, retry, pagination, empty state
  */
 import {
-    act,
-    fireEvent,
-    render,
-    screen,
-    waitFor,
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
 } from "@testing-library/react-native";
 import React from "react";
+
+// ─── Import screen after mocks ────────────────────────────────────────────────
+
+import SearchScreen from "../../../app/search-results";
 
 // ─── Mock all hooks ───────────────────────────────────────────────────────────
 
@@ -71,6 +75,10 @@ jest.mock("react-i18next", () => ({
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn() }),
+  useLocalSearchParams: () => ({}),
+  Stack: {
+    Screen: ({ options }: any) => null,
+  },
 }));
 
 jest.mock("../../../components/ui/app-bar", () => ({
@@ -115,10 +123,6 @@ jest.mock("../../../components/search/filter-sheet", () => ({
   defaultFilters: { sortKey: "time", busType: "all", companyId: null },
   FilterValues: {},
 }));
-
-// ─── Import screen after mocks ────────────────────────────────────────────────
-
-import SearchScreen from "../../../app/(tabs)/explore";
 
 function resetState(overrides: Partial<typeof mockTripsState> = {}) {
   mockTripsState = {

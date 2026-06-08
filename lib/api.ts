@@ -91,6 +91,17 @@ export interface PopularRoute {
   currency: string;
   tripsPerDay: number;
   duration: string;
+  stops?: RouteStop[];
+}
+
+export interface RouteStop {
+  id: string;
+  name: string;
+  city: string;
+  code: string;
+  distanceFromOrigin?: string; // e.g. "45 km"
+  timeFromOrigin?: string; // e.g. "45 min"
+  priceFromOrigin?: number;
 }
 
 export interface Recommendation {
@@ -212,12 +223,23 @@ export async function fetchLocations(
     { headers: authHeaders(), signal },
   );
   if (!res.ok) throw new Error(`fetchLocations failed: ${res.status}`);
-  return res.json();
+  const body = await res.json();
+  // Handle both plain array and { locations: LocationSuggestion[] } envelope
+  return (
+    Array.isArray(body) ? body : (body.locations ?? [])
+  ) as LocationSuggestion[];
 }
 
 // ─── Companies ────────────────────────────────────────────────────────────────
 
 export async function fetchCompanies(): Promise<Company[]> {
+  // ── Mock mode ──────────────────────────────────────────────────────────────
+  if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+    const { MOCK_COMPANIES } = require("../src/services/mock.data");
+    return MOCK_COMPANIES;
+  }
+
+  // ── Real API ───────────────────────────────────────────────────────────────
   const res = await fetch(`${BASE_URL}/api/v1/companies`, {
     headers: authHeaders(),
   });
@@ -240,8 +262,8 @@ export async function fetchPublicOrganizations(
 ): Promise<PublicOrganization[]> {
   // ── Mock mode ──────────────────────────────────────────────────────────────
   if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
-    const { MOCK_COMPANIES } = await import("../src/services/mock.data");
-    return MOCK_COMPANIES.map((c) => ({
+    const { MOCK_COMPANIES } = require("../src/services/mock.data");
+    return MOCK_COMPANIES.map((c: any) => ({
       id: c.id,
       name: c.name,
       slug: c.shortName,
@@ -279,7 +301,7 @@ export async function fetchTrips(params: TripSearchParams): Promise<Trip[]> {
 
   // ── Mock mode ──────────────────────────────────────────────────────────────
   if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
-    const { MOCK_TRIPS } = await import("../src/services/mock.data");
+    const { MOCK_TRIPS } = require("../src/services/mock.data");
     const start = (page - 1) * limit;
     return MOCK_TRIPS.slice(start, start + limit);
   }
@@ -313,6 +335,13 @@ export async function fetchTrips(params: TripSearchParams): Promise<Trip[]> {
 // ─── Popular routes ───────────────────────────────────────────────────────────
 
 export async function fetchPopularRoutes(): Promise<PopularRoute[]> {
+  // ── Mock mode ──────────────────────────────────────────────────────────────
+  if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+    const { MOCK_POPULAR_ROUTES } = require("../src/services/mock.data");
+    return MOCK_POPULAR_ROUTES;
+  }
+
+  // ── Real API ───────────────────────────────────────────────────────────────
   const res = await fetch(`${BASE_URL}/api/v1/routes/popular`, {
     headers: authHeaders(),
   });
@@ -323,6 +352,14 @@ export async function fetchPopularRoutes(): Promise<PopularRoute[]> {
 // ─── Recommendations ─────────────────────────────────────────────────────────
 
 export async function fetchRecommendations(): Promise<Recommendation[]> {
+  // ── Mock mode ──────────────────────────────────────────────────────────────
+  if (process.env.EXPO_PUBLIC_USE_MOCK === "true") {
+    const { getMockRecommendations } =
+      await import("../src/services/mock.data");
+    return getMockRecommendations();
+  }
+
+  // ── Real API ───────────────────────────────────────────────────────────────
   const res = await fetch(`${BASE_URL}/api/v1/recommendations`, {
     headers: authHeaders(),
   });
