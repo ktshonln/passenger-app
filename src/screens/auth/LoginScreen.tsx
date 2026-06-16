@@ -4,16 +4,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    Image as RNImage,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  Image as RNImage,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { AuthButton } from "../../components/auth/AuthButton";
 import { AuthInput } from "../../components/auth/AuthInput";
@@ -25,18 +25,33 @@ const { width } = Dimensions.get("window");
 export default function LoginScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, isLoading, error, clearError, loginIdentifier, loginPassword: storeLoginPassword, pendingLoginPurpose, isAuthenticated } = useAuth();
   // Pre-filled from verify-phone redirect
-  const { identifier: prefillIdentifier } = useLocalSearchParams<{
+  const { identifier: prefillIdentifier, password: prefillPassword } = useLocalSearchParams<{
     identifier?: string;
+    password?: string;
   }>();
 
-  const [identifier, setIdentifier] = useState(prefillIdentifier ?? "");
-  const [password, setPassword] = useState("");
+  // Use prefill params first, then store values
+  const initialIdentifier = prefillIdentifier ?? loginIdentifier ?? "";
+  const initialPassword = prefillPassword ?? storeLoginPassword ?? "";
+
+  const [identifier, setIdentifier] = useState(initialIdentifier);
+  const [password, setPassword] = useState(initialPassword);
   const [fieldErrors, setFieldErrors] = useState<{
     identifier?: string;
     password?: string;
   }>({});
+
+  const handleIdentifierChange = (text: string) => {
+    setIdentifier(text);
+    clearError();
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    clearError();
+  };
 
   const cardY = useRef(new Animated.Value(40)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
@@ -76,6 +91,21 @@ export default function LoginScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // Redirect if authenticated
+    if (isAuthenticated) {
+      router.replace("/(tabs)");
+    } 
+    // Redirect if login requires verification or 2FA
+    else if (pendingLoginPurpose) {
+      if (pendingLoginPurpose === "verification") {
+        router.replace("/auth/verify-login" as any);
+      } else if (pendingLoginPurpose === "2fa") {
+        router.replace("/auth/verify-2fa" as any);
+      }
+    }
+  }, [isAuthenticated, pendingLoginPurpose, router]);
+
   const handleLogin = async () => {
     const errors = validateLogin(identifier, password);
     if (Object.keys(errors).length) {
@@ -84,8 +114,12 @@ export default function LoginScreen() {
     }
     setFieldErrors({});
     try {
-      await login({ identifier: identifier.trim(), password });
-      router.replace("/(tabs)");
+      await login({ 
+        identifier: identifier.trim(), 
+        password, 
+        user_type: "passenger", 
+        device_name: "Mobile Device" 
+      });
     } catch {
       /* error lives in store */
     }
@@ -144,7 +178,7 @@ export default function LoginScreen() {
               label={t("auth.emailOrPhone")}
               placeholder={t("auth.emailOrPhonePlaceholder")}
               value={identifier}
-              onChangeText={setIdentifier}
+              onChangeText={handleIdentifierChange}
               error={fieldErrors.identifier}
               keyboardType="email-address"
               icon="person-outline"
@@ -154,7 +188,7 @@ export default function LoginScreen() {
               label={t("auth.password")}
               placeholder={t("auth.passwordPlaceholder")}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={handlePasswordChange}
               error={fieldErrors.password}
               isPassword
               icon="lock-closed-outline"

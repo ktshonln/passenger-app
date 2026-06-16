@@ -10,9 +10,14 @@ export function useAuth() {
   const pendingUserId = useAuthStore((s) => s.pendingUserId);
   const otpExpiresIn = useAuthStore((s) => s.otpExpiresIn);
   const loginIdentifier = useAuthStore((s) => s.loginIdentifier);
+  const loginPassword = useAuthStore((s) => s.loginPassword);
+  const pendingLoginPurpose = useAuthStore((s) => s.pendingLoginPurpose);
+  const pendingLoginChannel = useAuthStore((s) => s.pendingLoginChannel);
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
   const verifyPhone = useAuthStore((s) => s.verifyPhone);
+  const verifyLogin = useAuthStore((s) => s.verifyLogin);
+  const verify2fa = useAuthStore((s) => s.verify2fa);
   const refresh = useAuthStore((s) => s.refresh);
   const logout = useAuthStore((s) => s.logout);
   const logoutAll = useAuthStore((s) => s.logoutAll);
@@ -29,9 +34,14 @@ export function useAuth() {
     pendingUserId,
     otpExpiresIn,
     loginIdentifier,
+    loginPassword,
+    pendingLoginPurpose,
+    pendingLoginChannel,
     login,
     register,
     verifyPhone,
+    verifyLogin,
+    verify2fa,
     refresh,
     logout,
     logoutAll,

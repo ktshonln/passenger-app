@@ -106,20 +106,8 @@ function WalletSkeleton() {
 function TxCard({ tx }: { tx: WalletTransaction }) {
   const { t, i18n } = useTranslation();
   const up = tx.type === "topup";
-  const sc =
-    tx.status === "confirmed"
-      ? "#38A169"
-      : tx.status === "pending"
-        ? "#D69E2E"
-        : "#E53E3E";
-  const sb =
-    tx.status === "confirmed"
-      ? "#F0FFF4"
-      : tx.status === "pending"
-        ? "#FFFFF0"
-        : "#FFF5F5";
   return (
-    <View style={[S.txCard, tx.status === "failed" && { opacity: 0.55 }]}>
+    <View style={S.txCard}>
       <View style={[S.txIcon, { backgroundColor: up ? "#F0FFF4" : "#FFF5F5" }]}>
         <Ionicons
           name={up ? "arrow-down-circle" : "arrow-up-circle"}
@@ -150,11 +138,6 @@ function TxCard({ tx }: { tx: WalletTransaction }) {
           {up ? "+" : "-"}
           {tx.currency} {tx.amount.toLocaleString()}
         </Text>
-        <View style={[S.statusBadge, { backgroundColor: sb }]}>
-          <Text style={[S.statusTxt, { color: sc }]}>
-            {t(`wallet.status.${tx.status}`, { defaultValue: tx.status })}
-          </Text>
-        </View>
       </View>
     </View>
   );
@@ -167,9 +150,11 @@ export default function WalletScreen() {
   const { t, i18n } = useTranslation();
   const { current } = useLanguage();
   const { token, user } = useAuthStore();
-  const { balance, loading: balLoading } = useWallet();
+  const { balance, loading: balLoading, refetch } = useWallet();
 
-  const [filter, setFilter] = useState<"all" | "topup" | "payment">("all");
+  const [filter, setFilter] = useState<"all" | "topup" | "ticket_payment">(
+    "all",
+  );
   const [limit, setLimit] = useState(20);
   const {
     transactions,
@@ -245,20 +230,33 @@ export default function WalletScreen() {
       setShowWait(false);
       sseRef.current?.close();
       if (sseEvt.new_balance != null) setLiveBal(sseEvt.new_balance);
+      refetch();
       prependTransaction({
         id: `tx-${Date.now()}`,
         type: "topup",
         amount: sseEvt.amount ?? amtInt,
         currency: sseEvt.currency ?? "RWF",
-        status: "confirmed",
         description: t("wallet.topUpVia", {
           method: method === "mtn" ? "MTN MoMo" : "Airtel Money",
         }),
         created_at: new Date().toISOString(),
+        reference: null,
+        ticket_id: null,
+        balance_after: sseEvt.new_balance ?? 0,
       });
       Alert.alert(
         t("wallet.topUpSuccessful"),
         `${sseEvt.currency} ${sseEvt.amount?.toLocaleString()} ${t("wallet.added")}.\n${t("wallet.newBalance")}: ${sseEvt.currency} ${sseEvt.new_balance?.toLocaleString()}`,
+        [
+          {
+            text: t("common.ok"),
+            onPress: () => {
+              if (router.canGoBack()) {
+                router.back();
+              }
+            }
+          }
+        ],
       );
     } else if (sseEvt.status === "failed") {
       stopTimer();
@@ -311,7 +309,7 @@ export default function WalletScreen() {
     const amt = parseInt(amount, 10);
     setAmtErr(null);
     setPhErr(null);
-    if (!amount || isNaN(amt) || amt < 500) {
+    if (!amount || isNaN(amt) || amt < 100) {
       setAmtErr(t("wallet.minimumTopUpAmount"));
       return;
     }
@@ -343,10 +341,14 @@ export default function WalletScreen() {
         },
       );
     } catch (e: any) {
-      const code = e?.message ?? "";
+      const code = e?.code || "";
       if (code === "INVALID_AMOUNT") setAmtErr(t("wallet.minimumTopUpAmount"));
       else if (code === "INVALID_PHONE") setPhErr(t("wallet.validPhoneNumber"));
-      else Alert.alert(t("common.error"), t("wallet.failedToInitiateTopUp"));
+      else
+        Alert.alert(
+          t("common.error"),
+          e?.message || t("wallet.failedToInitiateTopUp"),
+        );
     } finally {
       setSubmitting(false);
     }
@@ -355,7 +357,7 @@ export default function WalletScreen() {
   const canConfirm =
     amount.length > 0 &&
     !isNaN(parseInt(amount, 10)) &&
-    parseInt(amount, 10) >= 500 &&
+    parseInt(amount, 10) >= 100 &&
     phone.length >= 10;
 
   const amt = parseInt(amount, 10);
@@ -414,7 +416,7 @@ export default function WalletScreen() {
         <View style={S.sheet}>
           {/* Filter */}
           <View style={S.filterRow}>
-            {(["all", "topup", "payment"] as const).map((f) => (
+            {(["all", "topup", "ticket_payment"] as const).map((f) => (
               <TouchableOpacity
                 key={f}
                 style={[S.filterBtn, filter === f && S.filterBtnOn]}
@@ -623,7 +625,7 @@ export default function WalletScreen() {
                           color="#A0A8B4"
                         />
                         <Text style={S.fHint}>
-                          {t("wallet.minimum")}: RWF 500
+                          {t("wallet.minimum")}: RWF 100
                         </Text>
                       </View>
                     </View>
@@ -715,6 +717,8 @@ export default function WalletScreen() {
                             setPhErr(null);
                           }}
                           keyboardType="phone-pad"
+                          editable={!user?.phone_number}
+                          selectTextOnFocus={!user?.phone_number}
                         />
                       </View>
                       {phErr && <Text style={S.fErr}>{phErr}</Text>}
@@ -972,8 +976,6 @@ const S = StyleSheet.create({
   txDesc: { fontSize: 13, fontWeight: "700", color: "#1A202C" },
   txDate: { fontSize: 11, color: "#A0A8B4", marginTop: 2 },
   txAmt: { fontSize: 14, fontWeight: "800" },
-  statusBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  statusTxt: { fontSize: 10, fontWeight: "700" },
   empty: { alignItems: "center", paddingVertical: 48, gap: 8 },
   emptyIcon: {
     width: 72,

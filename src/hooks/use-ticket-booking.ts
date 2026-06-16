@@ -15,12 +15,12 @@ export function useTicketBooking() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function book(request: TicketRequest): Promise<TicketResponse | null> {
+  async function book(request: TicketRequest, sudoToken?: string): Promise<TicketResponse | null> {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await bookTicket(request, token || undefined);
+      const response = await bookTicket(request, token || undefined, sudoToken);
       return response;
     } catch (err) {
       const errorMessage =

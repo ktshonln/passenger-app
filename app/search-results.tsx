@@ -1,8 +1,8 @@
 import { ExampleTripCard } from "@/components/search/example-trip-card";
 import {
-    FilterSheet,
-    FilterValues,
-    defaultFilters,
+  FilterSheet,
+  FilterValues,
+  defaultFilters,
 } from "@/components/search/filter-sheet";
 import { SearchCard } from "@/components/search/search-card";
 import { TripCard } from "@/components/search/trip-card";
@@ -17,17 +17,17 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type SortKey = "price_asc" | "price_desc" | "time" | "duration" | "rating";
@@ -153,40 +153,27 @@ export default function SearchResultsScreen() {
   ].reduce((a, b) => a + b, 0);
 
   async function handleSearch(values: {
-    from: string;
-    to: string;
-    date: string;
+    q?: string;
+    origin_id?: string;
+    company_id?: string;
+    date?: string;
     fromLocation?: any;
     toLocation?: any;
-    timeFrom?: string;
-    timeTo?: string;
   }) {
     setSearchModalOpen(false); // Close modal after search
     fade.setValue(0);
     slideUp.setValue(20);
     await searchTrips({
-      from: values.from,
-      to: values.to,
+      q: values.q,
+      origin_id: values.origin_id,
+      company_id: values.company_id,
       date: values.date,
-      operatorId: appliedFilters.companyId ?? undefined,
-      timeFrom: values.timeFrom,
-      timeTo: values.timeTo,
     });
-    if (values.from && values.to) {
-      saveHistory({
-        from: values.fromLocation ?? {
-          id: "",
-          name: values.from,
-          city: values.from,
-          code: "",
-        },
-        to: values.toLocation ?? {
-          id: "",
-          name: values.to,
-          city: values.to,
-          code: "",
-        },
-        date: values.date,
+    if (values.fromLocation) {
+      saveSearchHistory({
+        from: values.fromLocation,
+        to: values.toLocation ?? { id: "", name: "", city: "" },
+        date: values.date ?? "",
       });
     }
     Animated.parallel([
@@ -208,53 +195,28 @@ export default function SearchResultsScreen() {
   useEffect(() => {
     if (initialSearchDone) return;
 
-    const { q, from, to, fromId, toId, company: companyParam } = params;
+    const { q, fromId, company: companyParam } = params;
 
     // If we have URL parameters, trigger search automatically
-    if (from || to || q || companyParam) {
-      const searchFrom = (from as string) || (q as string) || "";
-      const searchTo = (to as string) || "";
-
+    if (fromId || q || companyParam) {
       // Apply company filter if provided
       if (companyParam) {
         setAppliedFilters((f) => ({ ...f, companyId: companyParam as string }));
       }
 
       // Trigger search
-      if (searchFrom || searchTo) {
-        handleSearch({
-          from: searchFrom,
-          to: searchTo,
-          date: "",
-          fromLocation: fromId
-            ? {
-                id: fromId as string,
-                name: searchFrom,
-                city: searchFrom,
-                code: "",
-              }
-            : undefined,
-          toLocation: toId
-            ? { id: toId as string, name: searchTo, city: searchTo, code: "" }
-            : undefined,
-        });
-        setInitialSearchDone(true);
-      }
+      handleSearch({
+        q: q as string,
+        origin_id: fromId as string,
+        company_id: companyParam as string,
+      });
+      setInitialSearchDone(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    params.q,
-    params.from,
-    params.to,
-    params.fromId,
-    params.toId,
-    params.company,
-  ]);
+  }, [params.q, params.fromId, params.company]);
 
   function handleHistoryPress(item: SearchHistoryItem) {
     handleSearch({
-      from: item.from.name,
-      to: item.to.name,
+      origin_id: item.from.id,
       date: item.date,
       fromLocation: item.from,
       toLocation: item.to,
@@ -263,8 +225,7 @@ export default function SearchResultsScreen() {
 
   function handlePopularPress(route: PopularRoute) {
     handleSearch({
-      from: route.from.name,
-      to: route.to.name,
+      origin_id: route.from.id,
       date: "",
       fromLocation: route.from,
       toLocation: route.to,
@@ -274,26 +235,37 @@ export default function SearchResultsScreen() {
   const filtered = useMemo(() => {
     let list = [...searchResults];
     if (company !== null) {
-      const name = companies.find((c) => c.id === company)?.name;
-      if (name) list = list.filter((t) => t.operator === name);
+      list = list.filter((t) => t.company.id === company);
     }
     switch (sortKey) {
       case "price_asc":
-        list.sort((a, b) => a.price - b.price);
+        list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
         break;
       case "price_desc":
-        list.sort((a, b) => b.price - a.price);
+        list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
         break;
       case "time":
-        list.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+        list.sort((a, b) => a.departure_at.localeCompare(b.departure_at));
         break;
-      case "duration":
-        list.sort((a, b) => a.duration.localeCompare(b.duration));
+      case "duration": {
+        // Calculate duration for each trip
+        list.sort((a, b) => {
+          const durA = a.arrival_at
+            ? new Date(a.arrival_at).getTime() -
+              new Date(a.departure_at).getTime()
+            : 0;
+          const durB = b.arrival_at
+            ? new Date(b.arrival_at).getTime() -
+              new Date(b.departure_at).getTime()
+            : 0;
+          return durA - durB;
+        });
         break;
+      }
       case "rating": {
         list.sort((a, b) => {
-          const ra = companies.find((c) => c.name === a.operator)?.rating ?? 0;
-          const rb = companies.find((c) => c.name === b.operator)?.rating ?? 0;
+          const ra = companies.find((c) => c.id === a.company.id)?.rating ?? 0;
+          const rb = companies.find((c) => c.id === b.company.id)?.rating ?? 0;
           return rb - ra;
         });
         break;
@@ -610,7 +582,7 @@ export default function SearchResultsScreen() {
             >
               <TripCard
                 trip={item}
-                company={companies.find((c) => c.name === item.operator)}
+                company={companies.find((c) => c.id === item.company.id)}
                 onBook={() =>
                   router.push({
                     pathname: "/trip-detail" as never,

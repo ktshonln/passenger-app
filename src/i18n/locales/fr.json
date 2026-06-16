@@ -521,7 +521,7 @@
     "tryDifferentMethod": "Essayer une autre méthode",
     "paymentTimedOut": "Délai expiré",
     "pleaseTryAgain": "Veuillez réessayer",
-    "minimumTopUpAmount": "Le montant minimum est de RWF 500",
+    "minimumTopUpAmount": "Le montant minimum est de RWF 100",
     "validPhoneNumber": "Veuillez entrer un numéro valide",
     "failedToInitiateTopUp": "Échec de l'initialisation. Veuillez réessayer.",
     "topUpVia": "Recharge via {{method}}",

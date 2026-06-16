@@ -1,22 +1,27 @@
 import { AppBar } from "@/components/ui/app-bar";
 import { useProfile } from "@/hooks/use-profile";
+import * as userService from "@/src/services/user.service";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // ─── Field component ──────────────────────────────────────────────────────────
@@ -106,7 +111,15 @@ function Field({
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function Avatar({ name, size = 80 }: { name: string; size?: number }) {
+function Avatar({
+  name,
+  avatarPath,
+  size = 80,
+}: {
+  name: string;
+  avatarPath?: string | null;
+  size?: number;
+}) {
   const initials =
     name
       .split(" ")
@@ -118,8 +131,82 @@ function Avatar({ name, size = 80 }: { name: string; size?: number }) {
     <View
       style={[S.avatar, { width: size, height: size, borderRadius: size / 2 }]}
     >
-      <Text style={[S.avatarText, { fontSize: size * 0.32 }]}>{initials}</Text>
+      {avatarPath ? (
+        <Image
+          source={{ uri: `https://api.katisha.online/storage/${avatarPath}` }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          contentFit="cover"
+        />
+      ) : (
+        <Text style={[S.avatarText, { fontSize: size * 0.32 }]}>
+          {initials}
+        </Text>
+      )}
     </View>
+  );
+}
+
+// ─── Password Modal ───────────────────────────────────────────────────────────
+
+function PasswordModal({
+  visible,
+  onSubmit,
+  onCancel,
+  loading,
+  title = "Enter Password",
+}: {
+  visible: boolean;
+  onSubmit: (password: string) => void;
+  onCancel: () => void;
+  loading?: boolean;
+  title?: string;
+}) {
+  const [password, setPassword] = useState("");
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={S.modalBackdrop}>
+        <View style={S.modalContent}>
+          <Text style={S.modalTitle}>{title}</Text>
+          <Text style={S.modalSubtitle}>
+            Please enter your current password
+          </Text>
+          <View style={[S.fieldBox, { marginVertical: 16 }]}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={17}
+              color="#6A717D"
+              style={{ marginRight: 10 }}
+            />
+            <TextInput
+              style={S.fieldInput}
+              placeholder="Password"
+              placeholderTextColor="#A0A8B4"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
+          </View>
+          <View style={S.modalButtons}>
+            <TouchableOpacity style={S.modalCancelBtn} onPress={onCancel}>
+              <Text style={S.modalCancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[S.modalSubmitBtn, loading && { opacity: 0.5 }]}
+              onPress={() => onSubmit(password)}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={S.modalSubmitBtnText}>Confirm</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -130,21 +217,29 @@ export default function EditProfileScreen() {
   const { t } = useTranslation();
   const { profile, loading, load, update } = useProfile();
   const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
 
   // Pre-fill from auth store immediately, then override with profile API data
-  const [name, setName] = useState(
-    user ? `${user.first_name} ${user.last_name}` : "",
-  );
+  const [firstName, setFirstName] = useState(user?.first_name ?? "");
+  const [lastName, setLastName] = useState(user?.last_name ?? "");
   const [phone, setPhone] = useState(user?.phone_number ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [avatarPath, setAvatarPath] = useState<string | null>(
+    user?.avatar_path ?? null,
+  );
+  const [tempAvatarUri, setTempAvatarUri] = useState<string | null>(null);
 
   // Track originals to detect changes
-  const [origName, setOrigName] = useState(name);
+  const [origFirstName, setOrigFirstName] = useState(firstName);
+  const [origLastName, setOrigLastName] = useState(lastName);
   const [origPhone, setOrigPhone] = useState(phone);
   const [origEmail, setOrigEmail] = useState(email);
+  const [origAvatarPath, setOrigAvatarPath] = useState(avatarPath);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const successAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -169,45 +264,117 @@ export default function EditProfileScreen() {
   // When profile loads from API, update fields and originals
   useEffect(() => {
     if (profile) {
-      setName(profile.name);
-      setPhone(profile.phone);
-      setEmail(profile.email);
-      setOrigName(profile.name);
-      setOrigPhone(profile.phone);
-      setOrigEmail(profile.email);
+      // Backward compatibility for name:
+      if (profile.first_name !== undefined) {
+        setFirstName(profile.first_name);
+        setLastName(profile.last_name);
+      } else if (profile.name) {
+        const parts = profile.name.split(" ");
+        setFirstName(parts[0]);
+        setLastName(parts.slice(1).join(" "));
+      }
+      setPhone(profile.phone_number);
+      setEmail(profile.email || "");
+      setAvatarPath(profile.avatar_path);
+      setOrigFirstName(firstName);
+      setOrigLastName(lastName);
+      setOrigPhone(profile.phone_number);
+      setOrigEmail(profile.email || "");
+      setOrigAvatarPath((profile as any).avatar_path);
     }
   }, [profile]);
 
   const hasChanges =
-    name.trim() !== origName ||
+    firstName.trim() !== origFirstName ||
+    lastName.trim() !== origLastName ||
     phone.trim() !== origPhone ||
-    email.trim() !== origEmail;
+    email.trim() !== origEmail ||
+    avatarPath !== origAvatarPath;
 
-  function validate() {
+  const name = `${firstName} ${lastName}`.trim();
+
+  const pickImage = async () => {
+    // Request permissions first
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert("Permission to access camera roll is required!");
+      return;
+    }
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setTempAvatarUri(result.assets[0].uri);
+      await uploadAvatar(result.assets[0].uri, result.assets[0].mimeType);
+    }
+  };
+
+  const uploadAvatar = async (uri: string, mimeType?: string | null) => {
+    if (!token) return;
+    setUploadingAvatar(true);
+    try {
+      // Get presigned URL
+      const contentType = (mimeType || "image/jpeg") as any;
+      const { upload_url: uploadUrl, path } =
+        await userService.getAvatarPresignedUrl(token, contentType);
+      // Upload image
+      const formData = new FormData();
+      // For React Native, uri should be file:// path:
+      const file = {
+        uri: uri,
+        name: "avatar.jpg",
+        type: contentType,
+      };
+      formData.append("file", file as any);
+      // Use fetch to upload with PUT to presigned URL
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: {
+          uri,
+          type: contentType,
+        } as any, // React Native fetch uses this syntax
+      });
+      if (!uploadResponse.ok) throw new Error("Upload failed");
+      // Update profile
+      setAvatarPath(path);
+    } catch (err) {
+      Alert.alert("Failed to upload avatar", "Please try again later.");
+      setTempAvatarUri(null);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const validate = () => {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = t("profile.nameRequired");
-    if (!phone.trim()) e.phone = t("profile.phoneRequired");
+    if (!firstName.trim()) e.firstName = "First name is required";
+    if (!phone.trim()) e.phone = "Phone is required";
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
-      e.email = t("profile.invalidEmail");
+      e.email = "Invalid email";
     setErrors(e);
     return Object.keys(e).length === 0;
-  }
+  };
 
-  async function handleSave() {
+  const handleSave = async () => {
     if (!validate()) return;
     if (!hasChanges) {
       router.back();
       return;
     }
 
-    const payload: Record<string, string> = {};
-    if (name.trim() !== origName) payload.name = name.trim();
-    if (phone.trim() !== origPhone) payload.phone = phone.trim();
-    if (email.trim() !== origEmail) payload.email = email.trim();
-
     setSaving(true);
     try {
-      await update(payload);
+      await update({
+        first_name:
+          firstName.trim() !== origFirstName ? firstName.trim() : undefined,
+        last_name:
+          lastName.trim() !== origLastName ? lastName.trim() : undefined,
+        avatar_path: avatarPath !== origAvatarPath ? avatarPath : undefined,
+      });
       Animated.sequence([
         Animated.timing(successAnim, {
           toValue: 1,
@@ -226,7 +393,7 @@ export default function EditProfileScreen() {
     } finally {
       setSaving(false);
     }
-  }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -261,16 +428,31 @@ export default function EditProfileScreen() {
             {/* Avatar section */}
             <View style={S.avatarSection}>
               <View style={S.avatarWrap}>
-                <Avatar name={name} size={88} />
+                <Avatar
+                  name={name}
+                  avatarPath={tempAvatarUri || avatarPath}
+                  size={88}
+                />
                 <View style={S.avatarRing} />
               </View>
               <Text style={S.avatarName}>{name || "—"}</Text>
               <Text style={S.avatarPhone}>{phone || "—"}</Text>
-              <TouchableOpacity style={S.changePhotoBtn} activeOpacity={0.7}>
-                <Ionicons name="camera-outline" size={14} color="#0A4370" />
-                <Text style={S.changePhotoText}>
-                  {t("profile.changePhoto")}
-                </Text>
+              <TouchableOpacity
+                style={S.changePhotoBtn}
+                activeOpacity={0.7}
+                onPress={pickImage}
+                disabled={uploadingAvatar}
+              >
+                {uploadingAvatar ? (
+                  <ActivityIndicator size="small" color="#0A4370" />
+                ) : (
+                  <>
+                    <Ionicons name="camera-outline" size={14} color="#0A4370" />
+                    <Text style={S.changePhotoText}>
+                      {t("profile.changePhoto")}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -286,12 +468,21 @@ export default function EditProfileScreen() {
               </View>
 
               <Field
-                label={t("profile.fullName")}
-                value={name}
-                original={origName}
-                onChangeText={setName}
-                error={errors.name}
-                placeholder={t("profile.fullNamePlaceholder")}
+                label={t("profile.firstName")}
+                value={firstName}
+                original={origFirstName}
+                onChangeText={setFirstName}
+                error={errors.firstName}
+                placeholder="First Name"
+                icon="person-outline"
+              />
+              <Field
+                label={t("profile.lastName")}
+                value={lastName}
+                original={origLastName}
+                onChangeText={setLastName}
+                error={errors.lastName}
+                placeholder="Last Name"
                 icon="person-outline"
               />
               <Field
@@ -303,16 +494,18 @@ export default function EditProfileScreen() {
                 placeholder={t("profile.phonePlaceholder")}
                 keyboardType="phone-pad"
                 icon="call-outline"
+                editable={false} // TODO: Implement login channel change
               />
               <Field
                 label={t("profile.emailAddress")}
-                value={email}
+                value={email || ""}
                 original={origEmail}
                 onChangeText={setEmail}
                 error={errors.email}
                 placeholder={t("profile.emailPlaceholder")}
                 keyboardType="email-address"
                 icon="mail-outline"
+                editable={false} // TODO: Implement login channel change
               />
             </View>
 
@@ -372,9 +565,11 @@ export default function EditProfileScreen() {
               <TouchableOpacity
                 style={S.discardBtn}
                 onPress={() => {
-                  setName(origName);
+                  setFirstName(origFirstName);
+                  setLastName(origLastName);
                   setPhone(origPhone);
                   setEmail(origEmail);
+                  setAvatarPath(origAvatarPath);
                   setErrors({});
                 }}
                 activeOpacity={0.7}
@@ -385,6 +580,12 @@ export default function EditProfileScreen() {
           </Animated.View>
         </ScrollView>
       )}
+      <PasswordModal
+        visible={passwordModalVisible}
+        onCancel={() => setPasswordModalVisible(false)}
+        onSubmit={() => {}}
+        loading={false}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -451,6 +652,61 @@ const S = StyleSheet.create({
     paddingVertical: 7,
   },
   changePhotoText: { fontSize: 12, color: "#0A4370", fontWeight: "700" },
+
+  // Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    width: "80%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1A202C",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#6A717D",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  modalCancelBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6A717D",
+  },
+  modalSubmitBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: "#0A4370",
+  },
+  modalSubmitBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+  },
 
   // Card
   card: {

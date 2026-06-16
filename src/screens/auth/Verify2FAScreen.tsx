@@ -25,18 +25,18 @@ import { validateOtp } from "../../utils/validation";
 const { width } = Dimensions.get("window");
 const OTP_LENGTH = 6;
 
-export default function VerifyPhoneScreen() {
+export default function Verify2FAScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const {
-    verifyPhone,
+    verify2fa,
     isLoading,
     error,
     clearError,
     pendingUserId,
     otpExpiresIn,
     clearPending,
-    loginPassword,
+    isAuthenticated,
   } = useAuth();
 
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -86,6 +86,13 @@ export default function VerifyPhoneScreen() {
   }, []);
 
   useEffect(() => {
+    // If authenticated, go to tabs
+    if (isAuthenticated) {
+      router.replace("/(tabs)");
+    }
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
     if (secondsLeft <= 0) return;
     const timer = setInterval(
       () => setSecondsLeft((s) => Math.max(0, s - 1)),
@@ -127,14 +134,10 @@ export default function VerifyPhoneScreen() {
       return;
     }
     try {
-      const loginIdentifier = await verifyPhone({
+      await verify2fa({
         user_id: pendingUserId,
-        otp,
-      });
-      // API returns login_identifier — pre-fill login screen with it and password
-      router.replace({
-        pathname: "/auth/login" as never,
-        params: { identifier: loginIdentifier, password: loginPassword },
+        otp: otp,
+        device_name: "Mobile Device",
       });
     } catch {
       /* error lives in store */
@@ -170,13 +173,13 @@ export default function VerifyPhoneScreen() {
           <View style={styles.iconRing}>
             <View style={styles.iconInner}>
               <Ionicons
-                name="phone-portrait"
+                name="shield-checkmark-outline"
                 size={28}
                 color={Colors.primary}
               />
             </View>
           </View>
-          <Text style={styles.headerTitle}>{t("auth.verifyPhone")}</Text>
+          <Text style={styles.headerTitle}>{t("auth.verify2FA")}</Text>
           <Text style={styles.headerSub}>{t("auth.oneStepAway")}</Text>
         </Animated.View>
       </View>
@@ -268,7 +271,7 @@ export default function VerifyPhoneScreen() {
                 try {
                   await resendOtpRequest({
                     user_id: pendingUserId,
-                    purpose: "phone_verification",
+                    purpose: "2fa",
                   });
                   setSecondsLeft(300);
                   setDigits(Array(OTP_LENGTH).fill(""));

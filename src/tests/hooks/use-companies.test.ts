@@ -2,18 +2,15 @@ import { cleanup, renderHook, waitFor } from "@testing-library/react-native";
 import { useCompanies } from "../../../hooks/use-companies";
 import { useAuthStore } from "../../store/auth.store";
 
-// Force mock mode
-jest.mock("../../services/mock.data", () => ({
-  ...jest.requireActual("../../services/mock.data"),
-  mockDelay: () => Promise.resolve(),
-}));
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
 
 afterEach(() => {
   cleanup();
 });
 
 beforeEach(() => {
-  process.env.EXPO_PUBLIC_USE_MOCK = "true";
+  mockFetch.mockClear();
   useAuthStore.setState({
     isAuthenticated: true,
     token: "mock-token",
@@ -23,6 +20,19 @@ beforeEach(() => {
 
 describe("useCompanies", () => {
   it("loads companies on mount", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          id: "1",
+          name: "Volcano",
+          slug: "volcano",
+          org_type: "bus_company",
+          logo_path: "/logos/volcano.png",
+        },
+      ],
+    });
+
     const { result } = renderHook(() => useCompanies());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.companies.length).toBeGreaterThan(0);
@@ -30,6 +40,19 @@ describe("useCompanies", () => {
   });
 
   it("returns companies matching PublicOrganization mapped shape", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          id: "1",
+          name: "Volcano",
+          slug: "volcano",
+          org_type: "bus_company",
+          logo_path: "/logos/volcano.png",
+        },
+      ],
+    });
+
     const { result } = renderHook(() => useCompanies());
     await waitFor(() => expect(result.current.loading).toBe(false));
     const company = result.current.companies[0];
@@ -41,12 +64,8 @@ describe("useCompanies", () => {
 });
 
 describe("useCompanies — public API (no auth)", () => {
-  const mockFetch = jest.fn();
-
   beforeEach(() => {
-    process.env.EXPO_PUBLIC_USE_MOCK = "false";
     mockFetch.mockClear();
-    global.fetch = mockFetch as any;
   });
 
   it("calls /api/v1/organizations/public without Authorization header", async () => {

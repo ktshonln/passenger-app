@@ -4,15 +4,15 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { AuthButton } from "../../components/auth/AuthButton";
 import { AuthInput } from "../../components/auth/AuthInput";
@@ -40,6 +40,31 @@ export default function RegisterScreen() {
     password?: string;
     email?: string;
   }>({});
+
+  const handleFirstNameChange = (text: string) => {
+    setFirstName(text);
+    clearError();
+  };
+
+  const handleLastNameChange = (text: string) => {
+    setLastName(text);
+    clearError();
+  };
+
+  const handlePhoneChange = (text: string) => {
+    setPhone(text);
+    clearError();
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    clearError();
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    clearError();
+  };
 
   const cardY = useRef(new Animated.Value(40)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
@@ -161,7 +186,7 @@ export default function RegisterScreen() {
                   label={t("auth.firstName")}
                   placeholder={t("auth.firstNamePlaceholder")}
                   value={firstName}
-                  onChangeText={setFirstName}
+                  onChangeText={handleFirstNameChange}
                   error={fieldErrors.first_name}
                   autoCapitalize="words"
                   icon="person-outline"
@@ -173,7 +198,7 @@ export default function RegisterScreen() {
                   label={t("auth.lastName")}
                   placeholder={t("auth.lastNamePlaceholder")}
                   value={lastName}
-                  onChangeText={setLastName}
+                  onChangeText={handleLastNameChange}
                   error={fieldErrors.last_name}
                   autoCapitalize="words"
                   testID="register-last-name-input"
@@ -184,7 +209,7 @@ export default function RegisterScreen() {
               label={t("auth.phoneNumber")}
               placeholder={t("auth.phonePlaceholder")}
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={handlePhoneChange}
               error={fieldErrors.phone_number}
               keyboardType="phone-pad"
               icon="call-outline"
@@ -194,7 +219,7 @@ export default function RegisterScreen() {
               label={t("auth.emailOptional")}
               placeholder={t("auth.emailPlaceholder")}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={handleEmailChange}
               error={fieldErrors.email}
               keyboardType="email-address"
               icon="mail-outline"
@@ -204,7 +229,7 @@ export default function RegisterScreen() {
               label={t("auth.password")}
               placeholder={t("auth.newPasswordPlaceholder")}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={handlePasswordChange}
               error={fieldErrors.password}
               isPassword
               icon="lock-closed-outline"

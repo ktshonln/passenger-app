@@ -63,8 +63,8 @@ export default function NotificationsScreen() {
   }, [load]);
   useEffect(() => {
     if (profile) {
-      setSms(profile.preferences.smsNotifications);
-      setEmail(profile.preferences.emailNotifications);
+      setSms(profile.notif_channel.includes("sms"));
+      setEmail(profile.notif_channel.includes("email"));
     }
   }, [profile]);
 
@@ -74,7 +74,23 @@ export default function NotificationsScreen() {
   ) {
     setSaving(true);
     try {
-      await update({ preferences: { [key]: val } });
+      // Update notif_channel based on the toggle
+      const currentNotifChannel = profile?.notif_channel || [];
+      let newNotifChannel = [...currentNotifChannel];
+      if (key === "smsNotifications") {
+        if (val) {
+          if (!newNotifChannel.includes("sms")) newNotifChannel.push("sms");
+        } else {
+          newNotifChannel = newNotifChannel.filter((c) => c !== "sms");
+        }
+      } else if (key === "emailNotifications") {
+        if (val) {
+          if (!newNotifChannel.includes("email")) newNotifChannel.push("email");
+        } else {
+          newNotifChannel = newNotifChannel.filter((c) => c !== "email");
+        }
+      }
+      await update({ notif_channel: newNotifChannel });
     } finally {
       setSaving(false);
     }

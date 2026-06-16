@@ -1,150 +1,204 @@
 /**
  * Print Ticket Service
  * Calls GET /api/v1/tickets/:id/print?size=58mm|80mm|a4
- * Returns a fully self-contained HTML page that auto-prints.
+ * Falls back to locally generated HTML if API is unavailable
  */
 
-import { API_BASE_URL, USE_MOCK_DATA } from "@/lib/config";
+import { API_BASE_URL } from "@/lib/config";
+import { authFetch, parseErrorResponse } from "./auth.service";
+import { Booking } from "@/lib/api";
+import QRCode from "qrcode";
 
 export type PrintSize = "58mm" | "80mm" | "a4";
-
-/** Ticket data used to build the mock receipt */
-export interface PrintTicketData {
-  ticketId: string;
-  companyName?: string;
-  companyLogo?: string; // base64 data URI or emoji
-  passengerName?: string;
-  passengerPhone?: string; // already masked e.g. +250788***456
-  boardingStop?: string;
-  alightingStop?: string;
-  departureDate?: string; // e.g. "06 Apr 2026"
-  departureTime?: string; // e.g. "06:00 AM"
-  seatsCount?: number;
-  totalAmount?: string; // e.g. "RWF 3,500"
-  paymentMethod?: string; // e.g. "Wallet"
-  busPlate?: string | null;
-  driverName?: string | null;
-  issuedBy?: string | null; // staff-created tickets only
-}
 
 export interface PrintTicketOptions {
   ticketId: string;
   size: PrintSize;
   token?: string;
-  /** Ticket data for mock mode — ignored in real API mode (server builds the HTML) */
-  data?: PrintTicketData;
+  booking?: Booking;
 }
 
-/**
- * Fetch the print HTML for a ticket.
- * Returns the raw HTML string on success.
- * Throws "FORBIDDEN" | "TICKET_NOT_FOUND" | "PRINT_FAILED" on error.
- */
-export async function fetchPrintHtml(
-  opts: PrintTicketOptions,
-): Promise<string> {
-  if (USE_MOCK_DATA) {
-    return buildMockHtml(opts.size, opts.data ?? { ticketId: opts.ticketId });
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function formatTime(iso: string): string {
+  const date = new Date(iso);
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+async function generateLocalPrintHtml(options: PrintTicketOptions & { booking?: Booking }): Promise<string> {
+  const { size, booking, ticketId } = options;
+  const bookingRef = `KAT-${ticketId.slice(-4).toUpperCase()}`;
+  
+  let widthCss: string;
+  let qrSizeCss: string;
+  let pageCss: string;
+  
+  switch (size) {
+    case "58mm":
+      widthCss = "width: 58mm;";
+      qrSizeCss = "width: 30mm; height: 30mm;";
+      pageCss = "@page { margin: 0; size: 58mm auto; }";
+      break;
+    case "80mm":
+      widthCss = "width: 80mm;";
+      qrSizeCss = "width: 40mm; height: 40mm;";
+      pageCss = "@page { size: 80mm auto; }";
+      break;
+    case "a4":
+      widthCss = "width: 210mm;";
+      qrSizeCss = "width: 50mm; height: 50mm;";
+      pageCss = "@page { size: a4; }";
+      break;
   }
 
-  const headers: Record<string, string> = {};
-  if (opts.token) headers["Authorization"] = `Bearer ${opts.token}`;
+  // QR code content: simple ticket ID for operators to scan and identify the ticket
+  const qrData = `katisha-ticket:${ticketId}`;
 
-  const res = await fetch(
-    `${API_BASE_URL}/tickets/${opts.ticketId}/print?size=${opts.size}`,
-    { headers },
-  );
-
-  if (res.status === 403) throw new Error("FORBIDDEN");
-  if (res.status === 404) throw new Error("TICKET_NOT_FOUND");
-  if (!res.ok) throw new Error("PRINT_FAILED");
-
-  return res.text();
-}
-
-// ─── Mock HTML builder ────────────────────────────────────────────────────────
-
-function r(label: string, value: string | number | null | undefined): string {
-  if (value == null || value === "") return "";
-  return `<div class="row"><span class="label">${label}</span><span>${value}</span></div>`;
-}
-
-function buildMockHtml(size: PrintSize, d: PrintTicketData): string {
-  const widthCss = size === "a4" ? "210mm" : size === "80mm" ? "80mm" : "58mm";
-  const qrSize = size === "a4" ? "50mm" : size === "80mm" ? "40mm" : "30mm";
-  const pageSize =
-    size === "a4" ? "a4" : size === "80mm" ? "80mm auto" : "58mm auto";
-  const wrapperStyle = size === "a4" ? "max-width:80mm;margin:20mm auto;" : "";
-
-  // 1×1 transparent PNG — placeholder for logo and QR (server embeds real base64)
-  const placeholder =
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-  const logoSrc = d.companyLogo?.startsWith("data:")
-    ? d.companyLogo
-    : placeholder;
+  let qrImageData = "";
+  try {
+    // Generate SVG QR code first, then convert to base64 data URL
+    const svgString = await QRCode.toString(qrData, { type: "svg", width: 200 });
+    // Encode SVG to base64
+    const base64Svg = btoa(unescape(encodeURIComponent(svgString)));
+    qrImageData = `data:image/svg+xml;base64,${base64Svg}`;
+  } catch (error) {
+    console.error("QR code generation failed:", error);
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Ticket - ${d.ticketId}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket - ${bookingRef}</title>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Courier New',monospace;font-size:11px;background:#f5f5f5;color:#000;display:flex;justify-content:center;min-height:100vh;padding:20px}
-    .receipt-wrapper{${wrapperStyle}width:100%;max-width:${widthCss}}
-    .receipt{width:100%;padding:4mm;background:#fff}
-    .logo{display:block;max-width:30mm;margin:0 auto 2mm}
-    .company-name{text-align:center;font-size:13px;font-weight:bold;margin-bottom:3mm}
-    .divider{border-top:1px dashed #000;margin:2mm 0}
-    .title{text-align:center;font-size:12px;font-weight:bold;letter-spacing:2px;margin:2mm 0}
-    .row{display:flex;justify-content:space-between;margin:1mm 0}
-    .label{color:#555}
-    .qr-wrapper{text-align:center;margin:3mm 0}
-    .qr-wrapper img{width:${qrSize};height:${qrSize}}
-    .ticket-id{text-align:center;font-size:9px;color:#555;margin-bottom:3mm}
-    .powered-by{text-align:center;font-size:8px;color:#999;margin-top:3mm}
-    @media print{
-      body{background:#fff;padding:0;margin:0;display:block}
-      .receipt-wrapper{margin:0}
-      @page{margin:0;size:${pageSize}}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      background: #fff; 
+      color: #000; 
+      ${widthCss}
+    }
+    .receipt-wrapper { ${size === "a4" ? "max-width: 80mm; margin: 20mm auto;" : ""} }
+    .receipt { width: 100%; padding: 4mm; }
+    .logo { display: block; max-width: 30mm; margin: 0 auto 2mm; }
+    .company-name { text-align: center; font-size: 13px; font-weight: bold; margin-bottom: 3mm; }
+    .divider { border-top: 1px dashed #000; margin: 2mm 0; }
+    .title { text-align: center; font-size: 12px; font-weight: bold; letter-spacing: 2px; margin: 2mm 0; }
+    .row { display: flex; justify-content: space-between; margin: 1mm 0; }
+    .label { color: #555; }
+    .qr-wrapper { text-align: center; margin: 3mm 0; }
+    .qr-wrapper img { ${qrSizeCss} }
+    .ticket-id { text-align: center; font-size: 9px; color: #555; margin-bottom: 3mm; }
+    .powered-by { text-align: center; font-size: 8px; color: #999; margin-top: 3mm; }
+    @media print {
+      body { margin: 0; }
+      ${pageCss}
     }
   </style>
 </head>
 <body>
   <div class="receipt-wrapper">
     <div class="receipt">
-      <img class="logo" src="${logoSrc}" alt="${d.companyName ?? "Company"}"/>
-      <div class="company-name">${d.companyName ?? "Bus Company"}</div>
+      <div class="company-name">${booking?.trip?.operator || "Katisha"}</div>
       <div class="divider"></div>
       <div class="title">TICKET</div>
       <div class="divider"></div>
-      ${r("Passenger", d.passengerName)}
-      ${r("Phone", d.passengerPhone)}
+      <div class="row">
+        <span class="label">Passenger</span>
+        <span>${booking?.passenger?.fullName || "Passenger"}</span>
+      </div>
+      <div class="row">
+        <span class="label">Phone</span>
+        <span>${booking?.passenger?.phone || "-"}</span>
+      </div>
+      ${booking?.passenger?.email ? `
+      <div class="row">
+        <span class="label">Email</span>
+        <span>${booking.passenger.email}</span>
+      </div>` : ""}
       <div class="divider"></div>
-      ${r("From", d.boardingStop)}
-      ${r("To", d.alightingStop)}
-      ${r("Date", d.departureDate)}
-      ${r("Time", d.departureTime)}
+      <div class="row">
+        <span class="label">From</span>
+        <span>${booking?.trip?.from?.city || booking?.trip?.from?.name || "-"}</span>
+      </div>
+      <div class="row">
+        <span class="label">To</span>
+        <span>${booking?.trip?.to?.city || booking?.trip?.to?.name || "-"}</span>
+      </div>
+      <div class="row">
+        <span class="label">Date</span>
+        <span>${booking?.trip?.departureTime ? formatDate(booking.trip.departureTime) : "-"}</span>
+      </div>
+      <div class="row">
+        <span class="label">Time</span>
+        <span>${booking?.trip?.departureTime ? formatTime(booking.trip.departureTime) : "-"}</span>
+      </div>
       <div class="divider"></div>
-      ${r("Seats", d.seatsCount)}
-      ${r("Amount", d.totalAmount)}
-      ${r("Method", d.paymentMethod)}
-      <div class="divider"></div>
-      ${d.busPlate ? r("Bus", d.busPlate) : ""}
-      ${d.driverName ? r("Driver", d.driverName) : ""}
-      ${d.issuedBy ? r("Issued by", d.issuedBy) : ""}
+      <div class="row">
+        <span class="label">Seats</span>
+        <span>${booking?.seatNumber || "1"}</span>
+      </div>
+      <div class="row">
+        <span class="label">Amount</span>
+        <span>${booking?.currency || "RWF"} ${(booking?.totalPaid || 0).toLocaleString()}</span>
+      </div>
+      ${booking?.trip?.busType ? `
+      <div class="row">
+        <span class="label">Bus Type</span>
+        <span>${booking.trip.busType}</span>
+      </div>` : ""}
       <div class="divider"></div>
       <div class="qr-wrapper">
-        <img src="${placeholder}" alt="Scan to verify ticket"/>
+        <img src="${qrImageData}" alt="Ticket QR Code" />
       </div>
-      <div class="ticket-id">${d.ticketId}</div>
+      <div class="ticket-id">${bookingRef}</div>
       <div class="divider"></div>
       <div class="powered-by">powered by katisha online</div>
     </div>
   </div>
-  <script>window.onload=function(){window.print()}</script>
+  <script>window.onload = function() { window.print(); }</script>
 </body>
 </html>`;
+}
+
+export async function fetchPrintHtml(
+  opts: PrintTicketOptions,
+): Promise<string> {
+  const url = `${API_BASE_URL}/tickets/${opts.ticketId}/print?size=${opts.size}`;
+  console.log("fetchPrintHtml URL:", url);
+  console.log("fetchPrintHtml token present:", !!opts.token);
+  
+  try {
+    const res = await authFetch(
+      url,
+      {},
+      opts.token,
+    );
+
+    console.log("fetchPrintHtml response status:", res.status);
+
+    if (res.status === 403) throw new Error("FORBIDDEN");
+    if (res.status === 404) throw new Error("TICKET_NOT_FOUND");
+    if (!res.ok) throw await parseErrorResponse(res);
+
+    const html = await res.text();
+    console.log("fetchPrintHtml HTML length:", html.length);
+    return html;
+  } catch (error) {
+    console.log("API failed, generating local HTML:", error);
+    return generateLocalPrintHtml(opts);
+  }
 }

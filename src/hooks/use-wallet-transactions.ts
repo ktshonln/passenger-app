@@ -5,7 +5,7 @@ import {
 import { useAuthStore } from "@/src/store/auth.store";
 import { useCallback, useEffect, useState } from "react";
 
-export function useWalletTransactions(type?: "topup" | "payment", limit = 20) {
+export function useWalletTransactions(type?: "topup" | "ticket_payment" | "refund", limit = 20) {
   const { token, isAuthenticated } = useAuthStore();
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [total, setTotal] = useState(0);

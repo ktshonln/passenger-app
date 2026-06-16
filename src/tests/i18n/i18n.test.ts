@@ -4,15 +4,15 @@
  */
 
 // Mock AsyncStorage before importing i18n
-jest.mock("@react-native-async-storage/async-storage", () =>
-  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
-);
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import i18n, { changeLanguage, LOCALE_STORAGE_KEY } from "../../i18n";
 import en from "../../i18n/locales/en.json";
 import fr from "../../i18n/locales/fr.json";
 import rw from "../../i18n/locales/rw.json";
+
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
 
 // Wait for i18n to initialise
 beforeAll(

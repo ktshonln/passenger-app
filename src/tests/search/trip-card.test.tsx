@@ -14,25 +14,33 @@ const t = (key: string, opts?: any) => {
   return key;
 };
 
-const BASE_TRIP: Trip = {
+const BASE_TRIP: any = {
   id: "t1",
-  from: { id: "l1", name: "Kigali", city: "Kigali", code: "KGL" },
-  to: { id: "l2", name: "Musanze", city: "Musanze", code: "MSZ" },
-  departureTime: "2026-04-06T08:00:00",
-  arrivalTime: "2026-04-06T10:00:00",
+  origin: { id: "l1", name: "Kigali", city: "Kigali", code: "KGL", lat: 0, lng: 0 },
+  destination: { id: "l2", name: "Musanze", city: "Musanze", code: "MSZ", lat: 0, lng: 0 },
+  departure_at: "2026-04-06T08:00:00",
+  arrival_at: "2026-04-06T10:00:00",
   duration: "2h",
-  operator: "Volcano Express",
-  operatorId: "c1",
+  company: { 
+    id: "c1", 
+    name: "Volcano Express", 
+    logo_path: null, 
+  },
   price: 3000,
   currency: "RWF",
-  seatsAvailable: 10,
-  busType: "Express",
+  available_seats: 10,
+  bus: { 
+    id: "b1", 
+    plate: "RAB123", 
+    type: "Express" 
+  },
 };
 
 const COMPANY_WITH_URL: Company = {
   id: "c1",
   name: "Volcano Express",
   shortName: "Volcano",
+  logo_path: "https://example.com/logo.png",
   logoUrl: "https://example.com/logo.png",
   color: "#E53E3E",
   rating: 4.8,
@@ -42,6 +50,7 @@ const COMPANY_WITH_URL: Company = {
 
 const COMPANY_WITH_EMOJI: Company = {
   ...COMPANY_WITH_URL,
+  logo_path: "🌋",
   logoUrl: "🌋",
 };
 
@@ -94,7 +103,7 @@ describe("TripCard", () => {
   });
 
   it("shows urgency badge when seatsAvailable <= 5", () => {
-    const lowSeatTrip = { ...BASE_TRIP, seatsAvailable: 3 };
+    const lowSeatTrip = { ...BASE_TRIP, available_seats: 3 };
     render(
       <TripCard
         trip={lowSeatTrip}

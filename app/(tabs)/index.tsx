@@ -4,6 +4,7 @@ import { usePopularRoutes } from "@/hooks/use-popular-routes";
 import { useRecommendations } from "@/hooks/use-recommendations";
 import { useTrips } from "@/hooks/use-trips";
 import type { Company, PopularRoute, Recommendation, Trip } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/config";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -313,7 +314,7 @@ function UniversalSearch({
                     <View style={S.tripRowLeft}>
                       <View style={S.tripRowTimeBox}>
                         <Text style={S.tripRowTime}>
-                          {new Date(trip.departureTime).toLocaleTimeString([], {
+                          {new Date(trip.departure_at).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
                             hour12: false,
@@ -322,20 +323,17 @@ function UniversalSearch({
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={S.tripRowRoute}>
-                          {trip.from.city} → {trip.to.city}
+                          {trip.origin.city ?? trip.origin.name} →{" "}
+                          {trip.destination.city ?? trip.destination.name}
                         </Text>
                         <Text style={S.tripRowOperator}>
-                          {trip.operator} •{" "}
-                          {t(
-                            `home.${trip.busType.toLowerCase().replace(/\s+/g, "")}`,
-                            trip.busType,
-                          )}
+                          {trip.company.name} • {trip.bus?.type ?? "Bus"}
                         </Text>
                       </View>
                     </View>
                     <View style={S.tripRowRight}>
                       <Text style={S.tripRowPrice}>
-                        {trip.currency} {trip.price.toLocaleString()}
+                        {trip.currency} {trip.price?.toLocaleString() ?? "—"}
                       </Text>
                       <Ionicons
                         name="chevron-forward"
@@ -375,10 +373,9 @@ function UniversalSearch({
                     activeOpacity={0.7}
                   >
                     <View style={S.locationRowLeft}>
-                      <Text style={S.locationRowCode}>{item.code}</Text>
                       <View>
                         <Text style={S.locationRowName}>{item.name}</Text>
-                        <Text style={S.locationRowCity}>{item.city}</Text>
+                        <Text style={S.locationRowCity}>{item.city ?? ""}</Text>
                       </View>
                     </View>
                     <Ionicons
@@ -551,7 +548,24 @@ function UniversalSearch({
                         { backgroundColor: company.color + "18" },
                       ]}
                     >
-                      <Text style={{ fontSize: 22 }}>{company.logoUrl}</Text>
+                      {company.logoUrl &&
+                      typeof company.logoUrl === "string" &&
+                      (company.logoUrl.startsWith("http") ||
+                        company.logoUrl.startsWith("/")) ? (
+                        <RNImage
+                          source={{
+                            uri: company.logoUrl.startsWith("/")
+                              ? API_BASE_URL + company.logoUrl
+                              : company.logoUrl,
+                          }}
+                          style={{ width: 36, height: 36 }}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Text style={{ fontSize: 22 }}>
+                          {company.logoUrl || "🚌"}
+                        </Text>
+                      )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={S.companyRowName}>{company.name}</Text>
@@ -1142,7 +1156,22 @@ function CompanyCard({
       activeOpacity={0.85}
     >
       <View style={[S.companyLogo, { backgroundColor: company.color + "18" }]}>
-        <Text style={{ fontSize: 26 }}>{company.logoUrl}</Text>
+        {company.logoUrl &&
+        typeof company.logoUrl === "string" &&
+        (company.logoUrl.startsWith("http") ||
+          company.logoUrl.startsWith("/")) ? (
+          <RNImage
+            source={{
+              uri: company.logoUrl.startsWith("/")
+                ? API_BASE_URL + company.logoUrl
+                : company.logoUrl,
+            }}
+            style={{ width: 44, height: 44 }}
+            resizeMode="contain"
+          />
+        ) : (
+          <Text style={{ fontSize: 26 }}>{company.logoUrl || "🚌"}</Text>
+        )}
       </View>
       <Text style={S.companyName} numberOfLines={1}>
         {company.shortName}
@@ -1161,19 +1190,15 @@ function CompanyCard({
 // ─── Popular route card ───────────────────────────────────────────────────────
 function PopularRouteCard({
   route,
-  onSearch,
+  onBook,
   t,
 }: {
   route: PopularRoute;
-  onSearch: () => void;
+  onBook: () => void;
   t: (k: string, o?: any) => string;
 }) {
   return (
-    <TouchableOpacity
-      style={S.routeCard}
-      onPress={onSearch}
-      activeOpacity={0.9}
-    >
+    <TouchableOpacity style={S.routeCard} onPress={onBook} activeOpacity={0.9}>
       <View style={S.routeCardHeader}>
         <Text style={S.routeOperator}>
           {route.from.city} → {route.to.city}
@@ -1214,7 +1239,7 @@ function PopularRouteCard({
           </Text>
         </View>
         <View style={S.bookBtn}>
-          <Text style={S.bookBtnText}>{t("common.search")}</Text>
+          <Text style={S.bookBtnText}>{t("home.bookNow")}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -1429,38 +1454,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Recommended */}
-          {recommendations.length > 0 ? (
-            <View style={{ marginTop: 28 }}>
-              <SectionHeader
-                title={t("home.recommendedForYou")}
-                subtitle={t("home.basedOnTrips")}
-              />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12, paddingRight: 4 }}
-              >
-                {recommendations.map((rec) => (
-                  <RecommendCard
-                    key={rec.trip.id}
-                    rec={rec}
-                    onBook={() => goTripDetail(rec.trip)}
-                    t={t}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-          ) : (
-            <View style={S.emptyRec}>
-              <Ionicons name="sparkles-outline" size={28} color="#CBD5E0" />
-              <Text style={S.emptyRecTitle}>{t("home.noRecommendations")}</Text>
-              <Text style={S.emptyRecDesc}>
-                {t("home.noRecommendationsDesc")}
-              </Text>
-            </View>
-          )}
-
           {/* Popular routes */}
           {popularRoutes.length > 0 && (
             <View style={{ marginTop: 28 }}>
@@ -1473,7 +1466,7 @@ export default function HomeScreen() {
                 <PopularRouteCard
                   key={i}
                   route={route}
-                  onSearch={() =>
+                  onBook={() =>
                     router.push({
                       pathname: "/search-results" as never,
                       params: {

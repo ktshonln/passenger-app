@@ -37,8 +37,21 @@ interface TripCardProps {
 
 export function TripCard({ trip, company, onBook, t }: TripCardProps) {
   const [imgError, setImgError] = useState(false);
-  const logoUrl = resolveLogoUrl(company?.logoUrl);
-  const seatsLow = trip.seatsAvailable <= 5;
+  const tripCompanyLogoPath = trip.company && "logo_path" in trip.company 
+    ? trip.company.logo_path 
+    : undefined;
+  const logoUrl = resolveLogoUrl(company?.logo_path ?? tripCompanyLogoPath);
+  const seatsLow = trip.available_seats <= 5;
+
+  // Calculate duration if we have both times
+  const duration = trip.departure_at && trip.arrival_at
+    ? (() => {
+        const diff = new Date(trip.arrival_at).getTime() - new Date(trip.departure_at).getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        return `${hours}h ${minutes}m`;
+      })()
+    : "";
 
   return (
     <View style={S.card}>
@@ -55,17 +68,19 @@ export function TripCard({ trip, company, onBook, t }: TripCardProps) {
           ) : (
             <View style={S.logoFallback}>
               <Text style={S.logoLetter}>
-                {trip.operator[0]?.toUpperCase()}
+                {(company?.name ?? (trip.company as any)?.name ?? "?")[0]?.toUpperCase()}
               </Text>
             </View>
           )}
           <View>
-            <Text style={S.cardOperatorName}>{trip.operator}</Text>
+            <Text style={S.cardOperatorName}>
+              {company?.name ?? (trip.company as any)?.name ?? "Operator"}
+            </Text>
             <View style={S.cardRatingRow}>
               <Ionicons name="star" size={10} color="#F6AD55" />
               <Text style={S.cardRatingText}>{company?.rating ?? "—"}</Text>
               <Text style={S.cardRatingDot}>·</Text>
-              <Text style={S.cardRatingText}>{trip.busType}</Text>
+              <Text style={S.cardRatingText}>{trip.bus?.type ?? "Bus"}</Text>
             </View>
           </View>
         </View>
@@ -73,14 +88,14 @@ export function TripCard({ trip, company, onBook, t }: TripCardProps) {
           <View style={S.urgencyBadge}>
             <Ionicons name="flame" size={10} color="#E53E3E" />
             <Text style={S.urgencyText}>
-              {t("trips.seatsLeft", { count: trip.seatsAvailable })}
+              {t("trips.seatsLeft", { count: trip.available_seats })}
             </Text>
           </View>
         )}
         {!seatsLow && (
           <View style={S.seatsBadge}>
             <Ionicons name="people-outline" size={10} color="#38A169" />
-            <Text style={S.seatsText}>{trip.seatsAvailable} seats</Text>
+            <Text style={S.seatsText}>{trip.available_seats} seats</Text>
           </View>
         )}
       </View>
@@ -88,14 +103,13 @@ export function TripCard({ trip, company, onBook, t }: TripCardProps) {
       {/* Route */}
       <View style={S.cardRoute}>
         <View style={S.cardStop}>
-          <Text style={S.cardTime}>{formatTime(trip.departureTime)}</Text>
-          <Text style={S.cardCode}>{trip.from.code}</Text>
+          <Text style={S.cardTime}>{formatTime(trip.departure_at)}</Text>
           <Text style={S.cardCity} numberOfLines={1}>
-            {trip.from.city}
+            {trip.origin.city ?? trip.origin.name}
           </Text>
         </View>
         <View style={S.cardMid}>
-          <Text style={S.cardDuration}>{trip.duration}</Text>
+          {duration ? <Text style={S.cardDuration}>{duration}</Text> : null}
           <View style={S.routeLine}>
             <View style={S.routeDot} />
             <View style={S.routeBar} />
@@ -106,10 +120,11 @@ export function TripCard({ trip, company, onBook, t }: TripCardProps) {
           </View>
         </View>
         <View style={[S.cardStop, { alignItems: "flex-end" }]}>
-          <Text style={S.cardTime}>{formatTime(trip.arrivalTime)}</Text>
-          <Text style={S.cardCode}>{trip.to.code}</Text>
+          {trip.arrival_at ? (
+            <Text style={S.cardTime}>{formatTime(trip.arrival_at)}</Text>
+          ) : null}
           <Text style={S.cardCity} numberOfLines={1}>
-            {trip.to.city}
+            {trip.destination.city ?? trip.destination.name}
           </Text>
         </View>
       </View>
@@ -118,7 +133,7 @@ export function TripCard({ trip, company, onBook, t }: TripCardProps) {
       <View style={S.cardFooter}>
         <View>
           <Text style={S.cardPrice}>
-            {trip.currency} {trip.price.toLocaleString()}
+            {trip.currency} {trip.price?.toLocaleString() ?? "—"}
           </Text>
           <Text style={S.cardPriceSub}>{t("home.perPerson")}</Text>
         </View>

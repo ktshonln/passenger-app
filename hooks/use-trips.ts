@@ -1,4 +1,4 @@
-import { fetchTrips, Trip, TripSearchParams } from "@/lib/api";
+import { fetchTrips, Trip, TripSearchParams, PaginatedTripSearch } from "@/lib/api";
 import { useCallback, useState } from "react";
 
 const LIMIT = 20;
@@ -12,6 +12,7 @@ interface TripsState {
   page: number;
   hasMore: boolean;
   lastParams: TripSearchParams | null;
+  total: number;
 }
 
 const initialState: TripsState = {
@@ -23,6 +24,7 @@ const initialState: TripsState = {
   page: 1,
   hasMore: false,
   lastParams: null,
+  total: 0,
 };
 
 export function useTrips() {
@@ -41,11 +43,12 @@ export function useTrips() {
       lastParams: params,
     }));
     try {
-      const results = await fetchTrips({ ...params, page: 1, limit: LIMIT });
+      const results: PaginatedTripSearch = await fetchTrips({ ...params, page: 1, limit: LIMIT });
       setState((s) => ({
         ...s,
-        trips: results,
-        hasMore: results.length >= LIMIT,
+        trips: results.data,
+        total: results.total,
+        hasMore: results.data.length >= LIMIT && results.data.length < results.total,
         loading: false,
       }));
     } catch {
@@ -65,16 +68,17 @@ export function useTrips() {
 
       (async () => {
         try {
-          const results = await fetchTrips({
+          const results: PaginatedTripSearch = await fetchTrips({
             ...s.lastParams!,
             page: nextPage,
             limit: LIMIT,
           });
           setState((prev) => ({
             ...prev,
-            trips: [...prev.trips, ...results],
+            trips: [...prev.trips, ...results.data],
             page: nextPage,
-            hasMore: results.length >= LIMIT,
+            total: results.total,
+            hasMore: results.data.length >= LIMIT && results.data.length + prev.trips.length < results.total,
             loadingMore: false,
           }));
         } catch {
@@ -97,16 +101,17 @@ export function useTrips() {
 
       (async () => {
         try {
-          const results = await fetchTrips({
+          const results: PaginatedTripSearch = await fetchTrips({
             ...params,
             page: 1,
             limit: LIMIT,
           });
           setState((prev) => ({
             ...prev,
-            trips: results,
+            trips: results.data,
+            total: results.total,
             page: 1,
-            hasMore: results.length >= LIMIT,
+            hasMore: results.data.length >= LIMIT && results.data.length < results.total,
             loading: false,
             error: null,
           }));

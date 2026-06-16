@@ -10,14 +10,13 @@
  * via the injectedJavaScript prop (web) or opens a share sheet (native fallback).
  */
 
-import {
-  fetchPrintHtml,
-  type PrintSize,
-  type PrintTicketData,
-} from "@/src/services/print.service";
+import type { Booking } from "@/lib/api";
+import { fetchPrintHtml, type PrintSize } from "@/src/services/print.service";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -35,8 +34,7 @@ const STORAGE_KEY = "katisha_print_size";
 
 interface Props {
   ticketId: string;
-  /** Ticket data for building the mock receipt */
-  ticketData?: PrintTicketData;
+  booking?: Booking;
   /** Optional style override for the button */
   style?: object;
 }
@@ -72,7 +70,7 @@ const SIZE_OPTIONS: {
   },
 ];
 
-export function PrintTicketButton({ ticketId, ticketData, style }: Props) {
+export function PrintTicketButton({ ticketId, booking, style }: Props) {
   const { token } = useAuthStore();
   const [webViewRef, setWebViewRef] = useState<WebView | null>(null);
 
@@ -99,7 +97,7 @@ export function PrintTicketButton({ ticketId, ticketData, style }: Props) {
           ticketId,
           size,
           token: token ?? undefined,
-          data: ticketData ?? { ticketId },
+          booking,
         });
         setPrintHtml(html);
         setShowWebView(true);
@@ -122,7 +120,7 @@ export function PrintTicketButton({ ticketId, ticketData, style }: Props) {
         setPrinting(false);
       }
     },
-    [ticketId, token, ticketData],
+    [ticketId, token, booking],
   );
 
   const handlePrintPress = async () => {
@@ -155,7 +153,7 @@ export function PrintTicketButton({ ticketId, ticketData, style }: Props) {
     setShowSizeModal(true);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!printHtml) return;
 
     if (Platform.OS === "web") {
@@ -170,22 +168,33 @@ export function PrintTicketButton({ ticketId, ticketData, style }: Props) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } else {
-      // Native: Inject JavaScript to trigger download
-      webViewRef?.injectJavaScript(`
-        (function() {
-          const html = document.documentElement.outerHTML;
-          const blob = new Blob([html], { type: 'text/html' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'ticket-${ticketId}.html';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          true;
-        })();
-      `);
+      // Native: Save file and share
+      try {
+        // Create unique filename using ticket ID and timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const fileName = `ticket-${ticketId}-${timestamp}.html`;
+
+        const fileUri =
+          (FileSystem.documentDirectory || FileSystem.cacheDirectory || "") +
+          fileName;
+
+        await FileSystem.writeAsStringAsync(fileUri, printHtml, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "text/html",
+            dialogTitle: "Save or Share Ticket",
+            UTI: "public.html",
+          });
+        } else {
+          Alert.alert("Success", `Ticket saved to ${fileUri}`);
+        }
+      } catch (error) {
+        console.error("Failed to save ticket:", error);
+        Alert.alert("Error", "Failed to save ticket. Please try again.");
+      }
     }
   };
 

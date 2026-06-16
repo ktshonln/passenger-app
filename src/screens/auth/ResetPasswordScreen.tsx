@@ -289,6 +289,7 @@ export default function ResetPasswordScreen() {
                 onChangeText={(v) => {
                   setOtp(v.replace(/\D/g, "").slice(0, 6));
                   setFieldErrors((e) => ({ ...e, otp: undefined }));
+                  clearError();
                 }}
                 error={fieldErrors.otp}
                 keyboardType="number-pad"
@@ -302,6 +303,7 @@ export default function ResetPasswordScreen() {
                 onChangeText={(v) => {
                   setNewPassword(v);
                   setFieldErrors((e) => ({ ...e, newPassword: undefined }));
+                  clearError();
                 }}
                 error={fieldErrors.newPassword}
                 isPassword
@@ -315,6 +317,7 @@ export default function ResetPasswordScreen() {
                 onChangeText={(v) => {
                   setConfirmPassword(v);
                   setFieldErrors((e) => ({ ...e, confirmPassword: undefined }));
+                  clearError();
                 }}
                 error={fieldErrors.confirmPassword}
                 isPassword

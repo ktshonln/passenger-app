@@ -10,11 +10,13 @@ function mapToCompany(org: PublicOrganization): Company {
     id: org.id,
     name: org.name,
     shortName: org.name,
+    logo_path: org.logo_path ?? "",
     logoUrl: org.logo_path ?? "",
+    story: org.story,
     color: "#0A4370",
-    rating: 0,
-    totalTripsPerDay: 0,
-    popular: false,
+    rating: org.rating ?? 0,
+    totalTripsPerDay: 10,
+    popular: true,
   };
 }
 

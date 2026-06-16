@@ -61,10 +61,21 @@ const STATUS_STYLE: Record<
 
 function BookingCard({ booking }: { booking: Booking }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const cfg = STATUS_STYLE[booking.status] ?? STATUS_STYLE.pending;
 
+  const handlePress = () => {
+    router.push({
+      pathname: "/booking-success" as never,
+      params: {
+        booking: JSON.stringify(booking),
+        fromMyTrips: "true",
+      },
+    });
+  };
+
   return (
-    <View style={S.card}>
+    <TouchableOpacity style={S.card} onPress={handlePress} activeOpacity={0.85}>
       {/* Top row: ref + status */}
       <View style={S.cardTop}>
         <View style={S.cardRef}>
@@ -135,7 +146,7 @@ function BookingCard({ booking }: { booking: Booking }) {
           </Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

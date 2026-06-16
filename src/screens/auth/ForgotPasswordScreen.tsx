@@ -204,6 +204,7 @@ export default function ForgotPasswordScreen() {
                 onChangeText={(v) => {
                   setIdentifier(v);
                   setFieldError(undefined);
+                  reset();
                 }}
                 error={fieldError}
                 keyboardType="email-address"

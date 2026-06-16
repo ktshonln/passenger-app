@@ -82,25 +82,26 @@ export default function TripDetailScreen() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showMomoModal, setShowMomoModal] = useState(false);
   const [walletPassword, setWalletPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [confirmedTicket, setConfirmedTicket] = useState<any | null>(null);
   const [countdown, setCountdown] = useState(180); // Default to 3:00 for MoMo
   const countdownRef = useRef<any>(null);
 
   // Hooks
-  const { balance, loading: walletLoading } = useWallet();
+  const { balance, loading: walletLoading, refetch: refetchWalletBalance } = useWallet();
 
   // Helper to get stops and origin/destination from new API structure
-  const stops = trip?.route?.route_stops
-    ? [...trip.route.route_stops]
+  const stops = trip?.stops
+    ? [...trip.stops]
         .sort((a, b) => a.order - b.order)
-        .map((rs) => ({ ...rs.stop, order: rs.order }))
+        .map((rs) => ({ ...rs }))
     : [];
-  const origin = stops.length > 0 ? stops[0] : null;
-  const destination = stops.length > 0 ? stops[stops.length - 1] : null;
+  const origin = stops.length > 0 ? stops[0] : trip?.origin || null;
+  const destination = stops.length > 0 ? stops[stops.length - 1] : trip?.destination || null;
   const company = trip?.company || {
     id: "KAT",
-    name: trip?.route?.name || "Katisha Transport",
+    name: "Katisha Transport",
     story: "",
   };
 
@@ -116,7 +117,7 @@ export default function TripDetailScreen() {
     loading: bookingLoading,
     error: bookingError,
   } = useTicketBooking();
-  const { status: paymentStatus } = usePaymentSSE(pendingTicketId);
+  const { status: paymentStatus } = usePaymentSSE(pendingTicketId, token);
 
   // Initialize stops when trip loads - boarding defaults to origin, alighting to destination
   useEffect(() => {
@@ -198,6 +199,10 @@ export default function TripDetailScreen() {
     if (paymentStatus.status === "confirmed" && paymentStatus.ticket) {
       setPendingTicketId(null);
       if (countdownRef.current) clearInterval(countdownRef.current);
+      // Refresh wallet balance if payment method was wallet
+      if (paymentMethod === "wallet") {
+        refetchWalletBalance();
+      }
 
       // For cash payments (staff flow), we show the print button in the modal
       // rather than navigating away immediately
@@ -368,8 +373,8 @@ export default function TripDetailScreen() {
       return;
 
     // Verify password against auth store before proceeding
-    const passwordOk = await verifyPassword(walletPassword);
-    if (!passwordOk) {
+    const sudoToken = await verifyPassword(walletPassword);
+    if (!sudoToken) {
       Alert.alert(
         t("payment.wrongPassword", "Wrong Password"),
         t(
@@ -389,77 +394,17 @@ export default function TripDetailScreen() {
       alighting_stop_id: alightingStopId,
       seats_count: seatsCount,
       payment_method: "wallet",
-    });
+    }, sudoToken);
 
-    if (response) {
-      if (response.status === "confirmed") {
-        // Immediate confirmation
-        router.push({
-          pathname: "/booking-success" as never,
-          params: {
-            booking: JSON.stringify({
-              id: response.id,
-              trip: {
-                id: trip.id,
-                from: origin,
-                to: destination,
-                departureTime: trip.departure_at,
-                arrivalTime: trip.departure_at, // Mocking arrival as departure for success page
-                duration: t("trip.duration", "2h 30m"),
-                operator: company.name,
-                operatorId: company.id || "KAT",
-                price: response.amount || totalPrice,
-                currency: trip.currency,
-                seatsAvailable: trip.available_seats,
-                busType: getBusTypeLabel(trip.bus.type),
-              },
-              passenger: {
-                fullName: user?.first_name
-                  ? `${user.first_name} ${user.last_name}`
-                  : t("trip.passenger", "Passenger"),
-                phone: user?.phone_number || "",
-                email: user?.email || "",
-              },
-              seatNumber: "12A",
-              bookingRef: `KAT-${response.id.slice(-4).toUpperCase()}`,
-              status: "confirmed",
-              bookedAt: new Date().toISOString(),
-              totalPaid: response.amount || totalPrice,
-            currency: trip.currency,
-            issuedBy: user?.first_name ? `${user.first_name} ${user.last_name}` : undefined,
-          }),
-          },
-        });
-      } else if (response.status === "payment_pending" || response.ticket_id) {
-        // Requirement says wallet also creates ticket at payment_pending
-        setPendingTicketId(response.ticket_id || response.id);
-        setShowMomoModal(true); // Reuse MoMo modal for waiting state
-      }
+    if (response?.ticket_id) {
+      // Use SSE stream to wait for confirmation
+      setPendingTicketId(response.ticket_id);
+      setShowMomoModal(true);
     } else if (bookingError) {
-      // Handle specific errors
-      if (
-        bookingError.includes("INSUFFICIENT_WALLET_BALANCE") ||
-        bookingError.includes("INSUFFICIENT_FUNDS")
-      ) {
-        Alert.alert(
-          t("payment.insufficientBalance", "Insufficient Balance"),
-          t(
-            "payment.topUpPrompt",
-            "Not enough balance to complete this purchase",
-          ),
-          [
-            { text: t("common.cancel", "Cancel"), style: "cancel" },
-            {
-              text: t("payment.topUp", "Top Up"),
-              onPress: () => router.push("/wallet" as never),
-            },
-          ],
-        );
-      } else {
-        Alert.alert(t("booking.failed", "Booking Failed"), bookingError, [
-          { text: t("common.ok", "OK") },
-        ]);
-      }
+      Alert.alert(
+        t("payment.error", "Payment Failed"),
+        bookingError,
+      );
     }
   };
 
@@ -476,54 +421,12 @@ export default function TripDetailScreen() {
       passenger_name: guestName,
     });
 
-    if (response) {
-      if (response.status === "confirmed") {
-        if (paymentMethod === "cash") {
-          setConfirmedTicket(response);
-          return;
-        }
-        // Navigate to success for other methods if immediate
-        router.push({
-          pathname: "/booking-success" as never,
-          params: {
-            booking: JSON.stringify({
-              id: response.id,
-              trip: {
-                id: trip.id,
-                from: origin,
-                to: destination,
-                departureTime: trip.departure_at,
-                arrivalTime: trip.departure_at,
-                duration: t("trip.duration", "2h 30m"),
-                operator: company.name,
-                operatorId: company.id || "KAT",
-                price: response.amount || totalPrice,
-                currency: trip.currency,
-                seatsAvailable: trip.available_seats,
-                busType: getBusTypeLabel(trip.bus.type),
-              },
-              passenger: {
-                fullName: guestName || (user?.first_name ? `${user.first_name} ${user.last_name}` : t("trip.passenger", "Passenger")),
-                phone: guestPhone || user?.phone_number || "",
-                email: user?.email || "",
-              },
-              seatNumber: "12A",
-              bookingRef: `KAT-${response.id.slice(-4).toUpperCase()}`,
-              status: "confirmed",
-              bookedAt: new Date().toISOString(),
-              totalPaid: response.amount || totalPrice,
-              currency: trip.currency,
-              issuedBy: user?.first_name ? `${user.first_name} ${user.last_name}` : undefined,
-            }),
-          },
-        });
-      } else if (response.ticket_id || response.status === "payment_pending") {
-        // MoMo/Airtel/Cash payment - SSE flow initiated (202)
-        setPendingTicketId(response.ticket_id || response.id);
-        const ttl =
-          paymentMethod === "wallet" || paymentMethod === "cash" ? 30 : 180;
-        setCountdown(ttl); // Reset countdown
-      }
+    if (response?.ticket_id) {
+      // MoMo/Airtel/Cash payment - SSE flow
+      setPendingTicketId(response.ticket_id);
+      const ttl =
+        paymentMethod === "wallet" || paymentMethod === "cash" ? 30 : 180;
+      setCountdown(ttl); // Reset countdown
     } else if (bookingError) {
       // Handle NO_SEATS_AVAILABLE error
       if (bookingError.includes("NO_SEATS_AVAILABLE")) {
@@ -699,7 +602,11 @@ export default function TripDetailScreen() {
                 </Text>
               </View>
               <Text style={styles.companyName}>{company.name}</Text>
-              <Text style={styles.companyStory}>{company.story}</Text>
+              {company.story && (
+                <Text style={styles.companyStory} numberOfLines={2}>
+                  {company.story}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1115,15 +1022,27 @@ export default function TripDetailScreen() {
                             "Enter your password to confirm",
                           )}
                         </Text>
-                        <TextInput
-                          style={styles.passwordInput}
-                          placeholder={t("payment.password", "Password")}
-                          placeholderTextColor="#A0A8B4"
-                          value={walletPassword}
-                          onChangeText={setWalletPassword}
-                          secureTextEntry
-                          autoFocus
-                        />
+                        <View style={styles.passwordInputContainer}>
+                          <TextInput
+                            style={styles.passwordInput}
+                            placeholder={t("payment.password", "Password")}
+                            placeholderTextColor="#A0A8B4"
+                            value={walletPassword}
+                            onChangeText={setWalletPassword}
+                            secureTextEntry={!showPassword}
+                            autoFocus
+                          />
+                          <TouchableOpacity
+                            style={styles.eyeButton}
+                            onPress={() => setShowPassword(!showPassword)}
+                          >
+                            <Ionicons
+                              name={showPassword ? "eye-off" : "eye"}
+                              size={20}
+                              color="#A0A8B4"
+                            />
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
                       {/* Confirm Button */}
@@ -1236,39 +1155,6 @@ export default function TripDetailScreen() {
 
                     <PrintTicketButton
                       ticketId={confirmedTicket.id}
-                      ticketData={{
-                        ticketId: confirmedTicket.id,
-                        companyName: company.name,
-                        passengerName:
-                          confirmedTicket.passenger_name || guestName,
-                        passengerPhone:
-                          confirmedTicket.passenger_phone || guestPhone,
-                        boardingStop: stops.find((s) => s.id === boardingStopId)
-                          ?.name,
-                        alightingStop: stops.find(
-                          (s) => s.id === alightingStopId,
-                        )?.name,
-                        departureDate: new Date(
-                          trip.departure_at,
-                        ).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        }),
-                        departureTime: new Date(
-                          trip.departure_at,
-                        ).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }),
-                        seatsCount: seatsCount,
-                        totalAmount: `${trip.currency} ${(confirmedTicket.amount || totalPrice).toLocaleString()}`,
-                        paymentMethod: "Cash",
-                        busPlate: trip.bus.plate,
-                        issuedBy: user?.first_name
-                          ? `${user.first_name} ${user.last_name}`
-                          : "Staff",
-                      }}
                       style={{ marginTop: 20 }}
                     />
 
@@ -1334,15 +1220,23 @@ export default function TripDetailScreen() {
                     {/* Waiting for Payment */}
                     <View style={styles.waitingCard}>
                       <ActivityIndicator size="large" color="#0A4370" />
-                      <Text style={styles.waitingTitle}>
-                        {t("payment.enterPin", "Enter your PIN to confirm")}
-                      </Text>
-                      <Text style={styles.waitingPhone}>
-                        {t("payment.maskedPhone", "Payment request sent to")}
-                      </Text>
-                      <Text style={styles.waitingPhoneNumber}>
-                        {maskPhone(guestPhone || user?.phone_number || "")}
-                      </Text>
+                      {paymentMethod === "wallet" ? (
+                        <Text style={styles.waitingTitle}>
+                          {t("payment.waitingConfirmation", "Waiting for payment confirmation...")}
+                        </Text>
+                      ) : (
+                        <>
+                          <Text style={styles.waitingTitle}>
+                            {t("payment.enterPin", "Enter your PIN to confirm")}
+                          </Text>
+                          <Text style={styles.waitingPhone}>
+                            {t("payment.maskedPhone", "Payment request sent to")}
+                          </Text>
+                          <Text style={styles.waitingPhoneNumber}>
+                            {maskPhone(guestPhone || user?.phone_number || "")}
+                          </Text>
+                        </>
+                      )}
 
                       {/* Countdown */}
                       <View style={styles.countdownCard}>
@@ -1953,6 +1847,19 @@ const styles = StyleSheet.create({
     color: "#1A202C",
     borderWidth: 1,
     borderColor: "#E8EDF5",
+    flex: 1,
+  },
+  passwordInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F7F9FC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E8EDF5",
+  },
+  eyeButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   confirmButton: {
     backgroundColor: "#0A4370",

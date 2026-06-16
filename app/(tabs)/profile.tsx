@@ -188,7 +188,7 @@ export default function ProfileScreen() {
             <View className="flex-row items-center px-4 py-4 gap-4">
               <Avatar
                 name={displayName || "?"}
-                avatar={profile?.avatar}
+                avatar={profile?.avatar_path}
                 size={64}
               />
               <View className="flex-1">

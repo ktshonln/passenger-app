@@ -1,42 +1,47 @@
+/**
+ * VerifyLoginScreen
+ * Shown after POST /auth/login returns 202 { requires_verification: true }
+ * Calls POST /auth/verify-login which issues tokens and logs the user in.
+ */
 import { Colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
-  NativeSyntheticEvent,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TextInputKeyPressEventData,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    KeyboardAvoidingView,
+    NativeSyntheticEvent,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TextInputKeyPressEventData,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { AuthButton } from "../../components/auth/AuthButton";
 import { useAuth } from "../../hooks/useAuth";
 import { resendOtpRequest } from "../../services/auth.service";
-import { validateOtp } from "../../utils/validation";
 
 const { width } = Dimensions.get("window");
 const OTP_LENGTH = 6;
 
-export default function VerifyPhoneScreen() {
+export default function VerifyLoginScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const {
-    verifyPhone,
+    verifyLogin,
     isLoading,
     error,
     clearError,
     pendingUserId,
+    pendingLoginChannel,
     otpExpiresIn,
     clearPending,
-    loginPassword,
+    isAuthenticated,
   } = useAuth();
 
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -50,6 +55,9 @@ export default function VerifyPhoneScreen() {
   const cardOpacity = useRef(new Animated.Value(0)).current;
   const headerScale = useRef(new Animated.Value(0.75)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
+
+  const channel = pendingLoginChannel ?? "phone";
+  const channelIcon = channel === "email" ? "mail" : "phone-portrait";
 
   useEffect(() => {
     Animated.sequence([
@@ -86,6 +94,10 @@ export default function VerifyPhoneScreen() {
   }, []);
 
   useEffect(() => {
+    if (isAuthenticated) router.replace("/(tabs)");
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
     if (secondsLeft <= 0) return;
     const timer = setInterval(
       () => setSecondsLeft((s) => Math.max(0, s - 1)),
@@ -117,46 +129,66 @@ export default function VerifyPhoneScreen() {
 
   const handleVerify = async () => {
     const otp = digits.join("");
-    const errors = validateOtp(otp);
-    if (errors.otp) {
-      setFieldError(errors.otp);
+    if (otp.length < OTP_LENGTH) {
+      setFieldError(
+        t("auth.enterFullCode", "Please enter the full 6-digit code"),
+      );
       return;
     }
     if (!pendingUserId) {
-      setFieldError(t("auth.sessionExpired"));
+      setFieldError(
+        t("auth.sessionExpired", "Session expired. Please log in again."),
+      );
       return;
     }
     try {
-      const loginIdentifier = await verifyPhone({
+      await verifyLogin({
         user_id: pendingUserId,
         otp,
+        channel,
+        device_name: "Mobile Device",
       });
-      // API returns login_identifier — pre-fill login screen with it and password
-      router.replace({
-        pathname: "/auth/login" as never,
-        params: { identifier: loginIdentifier, password: loginPassword },
-      });
+      // isAuthenticated effect navigates to tabs
     } catch {
-      /* error lives in store */
+      /* error in store */
+    }
+  };
+
+  const handleResend = async () => {
+    if (!pendingUserId) return;
+    setResendLoading(true);
+    setResendError(undefined);
+    try {
+      await resendOtpRequest({
+        user_id: pendingUserId,
+        purpose: "login_verification",
+        channel,
+      });
+      setSecondsLeft(300);
+      setDigits(Array(OTP_LENGTH).fill(""));
+    } catch (e: unknown) {
+      setResendError(e instanceof Error ? e.message : "Failed to resend.");
+    } finally {
+      setResendLoading(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={S.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.header}>
-        <View style={styles.circle1} />
-        <View style={styles.circle2} />
+      <View style={S.header}>
+        <View style={S.circle1} />
+        <View style={S.circle2} />
         <TouchableOpacity
-          style={styles.backBtn}
+          style={S.backBtn}
           onPress={() => {
             clearPending();
             router.back();
           }}
         >
-          <View style={styles.backBtnInner}>
+          <View style={S.backBtnInner}>
             <Ionicons name="arrow-back" size={20} color={Colors.white} />
           </View>
         </TouchableOpacity>
@@ -167,45 +199,61 @@ export default function VerifyPhoneScreen() {
             opacity: headerOpacity,
           }}
         >
-          <View style={styles.iconRing}>
-            <View style={styles.iconInner}>
+          <View style={S.iconRing}>
+            <View style={S.iconInner}>
               <Ionicons
-                name="phone-portrait"
+                name={channelIcon as any}
                 size={28}
                 color={Colors.primary}
               />
             </View>
           </View>
-          <Text style={styles.headerTitle}>{t("auth.verifyPhone")}</Text>
-          <Text style={styles.headerSub}>{t("auth.oneStepAway")}</Text>
+          <Text style={S.headerTitle}>
+            {channel === "email"
+              ? t("auth.verifyEmail", "Verify Email")
+              : t("auth.verifyPhone", "Verify Phone")}
+          </Text>
+          <Text style={S.headerSub}>
+            {t("auth.oneStepAway", "One step away!")}
+          </Text>
         </Animated.View>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={S.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <Animated.View
           style={[
-            styles.card,
+            S.card,
             { opacity: cardOpacity, transform: [{ translateY: cardY }] },
           ]}
         >
-          <Text style={styles.title}>{t("auth.enterCode")}</Text>
-          <Text style={styles.subtitle}>
-            {t("auth.codeSentSms")}
-            {__DEV__ ? `\n${t("auth.checkConsole")}` : ""}
+          <Text style={S.title}>
+            {t("auth.enterCode", "Enter verification code")}
+          </Text>
+          <Text style={S.subtitle}>
+            {channel === "email"
+              ? t(
+                  "auth.codeSentEmail",
+                  "We sent a 6-digit code to your email address.",
+                )
+              : t(
+                  "auth.codeSentSms",
+                  "We sent a 6-digit code to your phone number.",
+                )}
           </Text>
 
-          {error || fieldError ? (
-            <View style={styles.errorBanner}>
+          {(error || fieldError) && (
+            <View style={S.errorBanner}>
               <Ionicons name="warning-outline" size={16} color={Colors.error} />
-              <Text style={styles.errorBannerText}>{error ?? fieldError}</Text>
+              <Text style={S.errorBannerText}>{error ?? fieldError}</Text>
             </View>
-          ) : null}
+          )}
 
-          <View style={styles.otpRow}>
+          {/* OTP boxes */}
+          <View style={S.otpRow}>
             {digits.map((digit, i) => (
               <TextInput
                 key={i}
@@ -213,9 +261,9 @@ export default function VerifyPhoneScreen() {
                   inputRefs.current[i] = r;
                 }}
                 style={[
-                  styles.otpBox,
-                  digit ? styles.otpBoxFilled : null,
-                  error || fieldError ? styles.otpBoxError : null,
+                  S.otpBox,
+                  digit ? S.otpBoxFilled : null,
+                  error || fieldError ? S.otpBoxError : null,
                 ]}
                 value={digit}
                 onChangeText={(text) => handleDigitChange(text, i)}
@@ -223,12 +271,12 @@ export default function VerifyPhoneScreen() {
                 keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
-                testID={`otp-input-${i}`}
               />
             ))}
           </View>
 
-          <View style={styles.timerRow}>
+          {/* Countdown */}
+          <View style={S.timerRow}>
             {secondsLeft > 0 ? (
               <>
                 <Ionicons
@@ -236,62 +284,46 @@ export default function VerifyPhoneScreen() {
                   size={14}
                   color={Colors.secondaryText}
                 />
-                <Text style={styles.timerText}>
-                  {t("auth.codeExpires")}
+                <Text style={S.timerText}>
+                  {t("auth.codeExpires", "Expires in ")}
                   {formatTime(secondsLeft)}
                 </Text>
               </>
             ) : (
-              <Text style={[styles.timerText, { color: Colors.error }]}>
-                {t("auth.codeExpired")}
+              <Text style={[S.timerText, { color: Colors.error }]}>
+                {t("auth.codeExpired", "Code expired")}
               </Text>
             )}
           </View>
 
           <View style={{ marginTop: 8 }}>
             <AuthButton
-              label={t("auth.verifyBtn")}
+              label={t("auth.verifyBtn", "Verify")}
               onPress={handleVerify}
               loading={isLoading}
               disabled={isLoading || digits.join("").length < OTP_LENGTH}
             />
           </View>
 
-          <View style={styles.resendRow}>
-            <Text style={styles.resendText}>{t("auth.didntReceive")}</Text>
+          <View style={S.resendRow}>
+            <Text style={S.resendText}>
+              {t("auth.didntReceive", "Didn't receive it? ")}
+            </Text>
             <TouchableOpacity
               disabled={secondsLeft > 0 || resendLoading || !pendingUserId}
-              onPress={async () => {
-                if (!pendingUserId) return;
-                setResendLoading(true);
-                setResendError(undefined);
-                try {
-                  await resendOtpRequest({
-                    user_id: pendingUserId,
-                    purpose: "phone_verification",
-                  });
-                  setSecondsLeft(300);
-                  setDigits(Array(OTP_LENGTH).fill(""));
-                } catch (e: unknown) {
-                  setResendError(
-                    e instanceof Error
-                      ? e.message
-                      : "Failed to resend. Try again.",
-                  );
-                } finally {
-                  setResendLoading(false);
-                }
-              }}
+              onPress={handleResend}
             >
               <Text
                 style={[
-                  styles.resendLink,
+                  S.resendLink,
                   (secondsLeft > 0 || resendLoading) && {
                     color: Colors.secondaryText,
                   },
                 ]}
               >
-                {resendLoading ? t("common.loading") : t("auth.resendCode")}
+                {resendLoading
+                  ? t("common.loading", "Loading...")
+                  : t("auth.resendCode", "Resend code")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -313,7 +345,7 @@ export default function VerifyPhoneScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const S = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.primary },
   header: {
     height: 220,

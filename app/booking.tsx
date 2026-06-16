@@ -1,28 +1,33 @@
 import { AppBar } from "@/components/ui/app-bar";
-import { createBooking, Trip } from "@/lib/api";
+import { useWallet } from "@/src/hooks/use-wallet";
+import {
+  bookTicket,
+  createPaymentSSE,
+  type PaymentStatus,
+} from "@/src/services/trip.service";
 import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Step = "details" | "password" | "payment";
-type PayMethod = "momo" | "airtel" | "card" | null;
+type PayMethod = "momo" | "airtel" | "card" | "wallet" | null;
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
@@ -242,9 +247,11 @@ export default function BookingScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ trip: string }>();
-  const trip: Trip = JSON.parse(params.trip ?? "{}");
-  const verifyPassword = useAuthStore((s) => s.verifyPassword);
-  const user = useAuthStore((s) => s.user);
+  const trip = JSON.parse(params.trip ?? "{}");
+  const { token, user, isAuthenticated } = useAuthStore();
+  const { balance: walletBalance, refetch: refetchWallet } = useWallet();
+
+  const [sudoToken, setSudoToken] = useState<string | null>(null);
 
   // Step state
   const [step, setStep] = useState<Step>("details");
@@ -285,10 +292,14 @@ export default function BookingScreen() {
   );
   const [payLoading, setPayLoading] = useState(false);
   const [payError, setPayError] = useState("");
+  const [currentTicketId, setCurrentTicketId] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(
+    null,
+  );
 
   const total = (trip.price ?? 0) + 50;
 
-  // ── Step 1 submit ──
+  // Step 1 submit
   function submitDetails() {
     const e: Record<string, string> = {};
     if (!fullName.trim()) e.fullName = t("profile.nameRequired");
@@ -302,7 +313,7 @@ export default function BookingScreen() {
     animateNext();
   }
 
-  // ── Step 2 submit ──
+  // Step 2 submit
   async function submitPassword() {
     if (!password) {
       setPwError(t("auth.passwordPlaceholder"));
@@ -310,32 +321,107 @@ export default function BookingScreen() {
     }
     setPwLoading(true);
     setPwError("");
-    const ok = await verifyPassword(password);
-    setPwLoading(false);
-    if (!ok) {
+    try {
+      if (token) {
+        const result = await useAuthStore.getState().verifyPassword(password);
+        if (result) {
+          setSudoToken(result);
+          setStep("payment");
+          animateNext();
+        } else {
+          setPwError(t("booking.passwordIncorrect"));
+        }
+      }
+    } catch (error) {
       setPwError(t("booking.passwordIncorrect"));
-      return;
+    } finally {
+      setPwLoading(false);
     }
-    setStep("payment");
-    animateNext();
   }
 
-  // ── Step 3 submit ──
+  // Step 3 submit
   async function submitPayment() {
     if (!payMethod) {
       setPayError(t("booking.choosePayment"));
       return;
     }
+    if (
+      payMethod === "wallet" &&
+      walletBalance &&
+      walletBalance.available < total
+    ) {
+      setPayError(t("booking.insufficientFunds"));
+      return;
+    }
     setPayLoading(true);
     setPayError("");
     try {
-      const booking = await createBooking(trip, { fullName, phone, email });
-      router.replace({
-        pathname: "/booking-success" as never,
-        params: { booking: JSON.stringify(booking) },
-      });
-    } catch {
-      setPayError(t("booking.bookingFailed"));
+      // Get trip details for boarding/alighting stops
+      const boardingStopId = trip.from?.id;
+      const alightingStopId = trip.to?.id;
+
+      if (!boardingStopId || !alightingStopId) {
+        throw new Error("Missing stop information");
+      }
+
+      const ticketResponse = await bookTicket(
+        {
+          trip_id: trip.id,
+          boarding_stop_id: boardingStopId,
+          alighting_stop_id: alightingStopId,
+          seats_count: 1,
+          payment_method: payMethod as any,
+          passenger_name: fullName,
+        },
+        token,
+        sudoToken || undefined,
+      );
+
+      setCurrentTicketId(ticketResponse.ticket_id);
+
+      // Set up SSE listener
+      const handleMessage = async (data: PaymentStatus) => {
+        console.log("SSE Message received:", data);
+        setPaymentStatus(data);
+        if (data.status === "confirmed") {
+          console.log("Payment confirmed, refetching wallet balance...");
+          await refetchWallet();
+          console.log("Wallet balance refetch complete");
+          // Create a booking object for the success screen
+          const booking = {
+            id: data.ticket?.id || ticketResponse.ticket_id,
+            bookingRef: data.ticket?.id || ticketResponse.ticket_id,
+            seatNumber: "1",
+            trip,
+            passenger: {
+              fullName,
+              phone,
+              email,
+            },
+            currency: trip.currency || "RWF",
+            totalPaid: total,
+            bookedAt: new Date().toISOString(),
+          };
+          router.replace({
+            pathname: "/booking-success" as never,
+            params: { booking: JSON.stringify(booking) },
+          });
+        } else if (
+          data.status === "failed" ||
+          data.status === "expired" ||
+          data.status === "timeout"
+        ) {
+          setPayError(data.message || t("booking.bookingFailed"));
+        }
+      };
+
+      const handleError = (err: Error) => {
+        setPayError(err.message);
+      };
+
+      createPaymentSSE(ticketResponse.ticket_id, handleMessage, handleError);
+    } catch (error: any) {
+      setPayError(error.message || t("booking.bookingFailed"));
     } finally {
       setPayLoading(false);
     }
@@ -513,6 +599,21 @@ export default function BookingScreen() {
               <TripSummary trip={trip} total={total} t={t} />
 
               <Card title={t("booking.choosePayment")}>
+                {isAuthenticated && (
+                  <PayOption
+                    id="wallet"
+                    logo="💳"
+                    title={t("booking.walletTitle")}
+                    desc={
+                      walletBalance
+                        ? `${t("booking.walletBalance")}: ${walletBalance.currency} ${walletBalance.available.toLocaleString()}`
+                        : t("booking.walletLoading")
+                    }
+                    color="#0A4370"
+                    selected={payMethod === "wallet"}
+                    onSelect={() => setPayMethod("wallet")}
+                  />
+                )}
                 <PayOption
                   id="momo"
                   logo="📱"
