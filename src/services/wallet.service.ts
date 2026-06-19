@@ -5,12 +5,8 @@
  */
 
 import { API_BASE_URL } from "@/lib/config";
+import EventSource from "react-native-sse";
 import { authFetch, parseErrorResponse } from "./auth.service";
-
-const MOBILE_HEADERS = {
-  "Content-Type": "application/json",
-  "X-Client-Type": "mobile",
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,7 +57,10 @@ export interface TopupSSEEvent {
 // ─── API functions ────────────────────────────────────────────────────────────
 
 export async function getWalletBalance(token: string): Promise<WalletBalance> {
-  console.log("[wallet.service] Fetching wallet balance from:", `${API_BASE_URL}/users/me/wallet`);
+  console.log(
+    "[wallet.service] Fetching wallet balance from:",
+    `${API_BASE_URL}/users/me/wallet`,
+  );
   const res = await authFetch(`${API_BASE_URL}/users/me/wallet`, {}, token);
   console.log("[wallet.service] Wallet balance response status:", res.status);
   if (!res.ok) throw await parseErrorResponse(res);
@@ -112,7 +111,7 @@ export function createTopupSSE(
   const url = `${API_BASE_URL}/users/me/wallet/topup/${topupId}/stream?access_token=${encodeURIComponent(token)}`;
   const es = new EventSource(url);
 
-  const handleEvent = (event: MessageEvent) => {
+  const handleEvent = (event: any) => {
     try {
       const data: TopupSSEEvent = JSON.parse(event.data);
       onEvent(data);
@@ -122,15 +121,18 @@ export function createTopupSSE(
     }
   };
 
-  es.addEventListener("pending", handleEvent);
-  es.addEventListener("confirmed", handleEvent);
-  es.addEventListener("failed", handleEvent);
-  es.addEventListener("timeout", handleEvent);
+  // Listen to all messages and check the status from the data
+  es.addEventListener("message", handleEvent);
+  // Also listen for specific event types as fallback with type assertion
+  (es.addEventListener as any)("pending", handleEvent);
+  (es.addEventListener as any)("confirmed", handleEvent);
+  (es.addEventListener as any)("failed", handleEvent);
+  (es.addEventListener as any)("timeout", handleEvent);
 
-  es.onerror = () => {
+  es.addEventListener("error", () => {
     onError(new Error("SSE connection error"));
     es.close();
-  };
+  });
 
   return { close: () => es.close() };
 }

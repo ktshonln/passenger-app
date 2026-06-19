@@ -152,44 +152,47 @@ export default function SearchResultsScreen() {
     company !== null ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
-  async function handleSearch(values: {
-    q?: string;
-    origin_id?: string;
-    company_id?: string;
-    date?: string;
-    fromLocation?: any;
-    toLocation?: any;
-  }) {
-    setSearchModalOpen(false); // Close modal after search
-    fade.setValue(0);
-    slideUp.setValue(20);
-    await searchTrips({
-      q: values.q,
-      origin_id: values.origin_id,
-      company_id: values.company_id,
-      date: values.date,
-    });
-    if (values.fromLocation) {
-      saveSearchHistory({
-        from: values.fromLocation,
-        to: values.toLocation ?? { id: "", name: "", city: "" },
-        date: values.date ?? "",
+  const handleSearch = useCallback(
+    async (values: {
+      q?: string;
+      origin_id?: string;
+      company_id?: string;
+      date?: string;
+      fromLocation?: any;
+      toLocation?: any;
+    }) => {
+      setSearchModalOpen(false); // Close modal after search
+      fade.setValue(0);
+      slideUp.setValue(20);
+      await searchTrips({
+        q: values.q,
+        origin_id: values.origin_id,
+        company_id: values.company_id,
+        date: values.date,
       });
-    }
-    Animated.parallel([
-      Animated.timing(fade, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideUp, {
-        toValue: 0,
-        useNativeDriver: true,
-        speed: 16,
-        bounciness: 4,
-      }),
-    ]).start();
-  }
+      if (values.fromLocation) {
+        saveHistory({
+          from: values.fromLocation,
+          to: values.toLocation ?? { id: "", name: "", city: "" },
+          date: values.date ?? "",
+        });
+      }
+      Animated.parallel([
+        Animated.timing(fade, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideUp, {
+          toValue: 0,
+          useNativeDriver: true,
+          speed: 16,
+          bounciness: 4,
+        }),
+      ]).start();
+    },
+    [searchTrips, saveHistory, fade, slideUp],
+  );
 
   // Auto-search based on URL parameters
   useEffect(() => {
@@ -212,7 +215,7 @@ export default function SearchResultsScreen() {
       });
       setInitialSearchDone(true);
     }
-  }, [params.q, params.fromId, params.company]);
+  }, [params, handleSearch, initialSearchDone]);
 
   function handleHistoryPress(item: SearchHistoryItem) {
     handleSearch({
@@ -349,12 +352,12 @@ export default function SearchResultsScreen() {
                     borderColor: c.color,
                   },
                 ]}
-                onPress={() =>
-                  setAppliedFilters((f) => ({
-                    ...f,
-                    companyId: company === c.id ? null : c.id,
-                  }))
-                }
+                onPress={() => {
+                  router.push({
+                    pathname: "/company-trips" as never,
+                    params: { companyId: c.id },
+                  });
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={{ fontSize: 16 }}>{c.logoUrl}</Text>

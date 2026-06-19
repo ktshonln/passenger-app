@@ -2,8 +2,9 @@
  * lib/api.ts — single source of truth for all API types and fetch functions.
  */
 
+import EventSource from "react-native-sse";
 import { authFetch, parseErrorResponse } from "../src/services/auth.service";
-import { API_BASE_URL } from "./config";
+import { API_BASE_URL, TELEMETRY_URL } from "./config";
 
 // ─── Auth token ───────────────────────────────────────────────────────────────
 
@@ -13,13 +14,6 @@ export function setAuthToken(token: string) {
 }
 export function getAuthToken() {
   return _token;
-}
-function authHeaders(): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    "X-Client-Type": "mobile",
-    ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
-  };
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -35,6 +29,70 @@ export interface Location {
   updated_at?: string;
 }
 
+export interface SearchHistoryItem {
+  id: string;
+  from: Location;
+  to: Location;
+  date: string;
+  searchedAt: string;
+}
+
+export interface Recommendation {
+  id: string;
+  origin: Location;
+  destination: Location;
+  price: number;
+  currency: string;
+  tripsPerDay: number;
+}
+
+export interface PassengerDetails {
+  fullName: string;
+  phone: string;
+  email?: string;
+}
+
+export interface PaymentPayload {
+  amount: number;
+  currency: string;
+  paymentMethod: "wallet" | "mtn" | "airtel" | "cash";
+  phone?: string;
+  password?: string;
+}
+
+export interface PaymentResult {
+  success: boolean;
+  transactionId?: string;
+  error?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string | null;
+  avatar?: string | null;
+  preferences: {
+    smsNotifications: boolean;
+    emailNotifications: boolean;
+    language: string;
+  };
+}
+
+export interface UpdateProfilePayload {
+  first_name?: string;
+  last_name?: string;
+  avatar_path?: string | null;
+  notif_channel?: ("sms" | "email" | "app")[];
+  locale?: "rw" | "en" | "fr";
+  two_factor_enabled?: boolean;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
 /** Extended location returned by autocomplete — includes live trip count */
 export interface LocationSuggestion extends Location {
   tripsToday?: number;
@@ -45,9 +103,13 @@ export interface Company {
   id: string;
   name: string;
   logo_path: string | null;
+  logoUrl?: string;
   story?: string | null;
   rating?: number;
   shortName?: string;
+  color?: string;
+  totalTripsPerDay?: number;
+  popular?: boolean;
 }
 
 export interface TripBus {
@@ -164,8 +226,22 @@ export interface BookingPassenger {
 
 export interface BookingTrip {
   id: string;
-  from: { id: string; name: string; city?: string; code?: string };
-  to: { id: string; name: string; city?: string; code?: string };
+  from: {
+    id: string;
+    name: string;
+    city?: string;
+    code?: string;
+    lat?: number;
+    lng?: number;
+  };
+  to: {
+    id: string;
+    name: string;
+    city?: string;
+    code?: string;
+    lat?: number;
+    lng?: number;
+  };
   departureTime: string;
   arrivalTime?: string;
   duration?: string;
@@ -175,6 +251,7 @@ export interface BookingTrip {
   currency?: string;
   seatsAvailable?: number;
   busType?: string;
+  bus?: { id: string; plate: string; type: string } | null;
 }
 
 export interface Booking {
@@ -229,13 +306,38 @@ export async function fetchLocations(
 export async function fetchCompanies(): Promise<Company[]> {
   const res = await authFetch(`${API_BASE_URL}/companies`);
   if (!res.ok) throw await parseErrorResponse(res);
-  return res.json();
+  const body = await res.json();
+  const data = Array.isArray(body) ? body : (body.data ?? []);
+  return data.map((org: any) => ({
+    id: org.id,
+    name: org.name,
+    shortName: org.name,
+    logo_path: org.logo_path ?? null,
+    logoUrl: org.logo_path ?? "",
+    story: org.story,
+    color: "#0A4370",
+    rating: org.rating ?? 4.5,
+    totalTripsPerDay: 10,
+    popular: true,
+  }));
 }
 
 export async function fetchCompany(id: string): Promise<Company> {
   const res = await authFetch(`${API_BASE_URL}/companies/${id}`);
   if (!res.ok) throw await parseErrorResponse(res);
-  return res.json();
+  const org = await res.json();
+  return {
+    id: org.id,
+    name: org.name,
+    shortName: org.name,
+    logo_path: org.logo_path ?? null,
+    logoUrl: org.logo_path ?? "",
+    story: org.story,
+    color: "#0A4370",
+    rating: org.rating ?? 4.5,
+    totalTripsPerDay: 10,
+    popular: true,
+  };
 }
 
 export async function fetchPublicOrganizations(
@@ -446,6 +548,8 @@ function mapTicketToBooking(ticket: any): Booking {
         )
           .slice(0, 3)
           .toUpperCase(),
+        lat: ticket.boarding_stop?.lat || 0,
+        lng: ticket.boarding_stop?.lng || 0,
       },
       to: {
         id: ticket.alighting_stop?.id,
@@ -459,6 +563,8 @@ function mapTicketToBooking(ticket: any): Booking {
         )
           .slice(0, 3)
           .toUpperCase(),
+        lat: ticket.alighting_stop?.lat || 0,
+        lng: ticket.alighting_stop?.lng || 0,
       },
       departureTime:
         ticket.trip?.departure_at ||
@@ -476,6 +582,7 @@ function mapTicketToBooking(ticket: any): Booking {
       price: ticket.ticket_price || 0,
       currency: "RWF",
       busType: ticket.trip?.bus?.type || "Unknown",
+      bus: ticket.trip?.bus || null,
     },
     passenger: {
       fullName: passengerName,
@@ -593,4 +700,203 @@ export async function changePassword(
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw await parseErrorResponse(res);
+}
+
+// ─── Bus Types ───────────────────────────────────────────────────────────────────
+
+export interface BusDriver {
+  id: string;
+  first_name: string;
+  last_name: string;
+  avatar_path: string | null;
+}
+
+export interface BusRoute {
+  id: string;
+  name: string;
+}
+
+export interface BusOrg {
+  id: string;
+  name: string;
+}
+
+export interface BusListItem {
+  id: string;
+  plate: string;
+  type: string;
+  device_id: string | null;
+  capacity: number;
+  status: "active" | "inactive";
+  driver: BusDriver | null;
+  org: BusOrg;
+  created_at: string;
+}
+
+export interface BusDetail extends BusListItem {
+  routes: BusRoute[];
+  updated_at: string;
+}
+
+export interface BusTrip {
+  id: string;
+  departure_at: string;
+  status: "scheduled" | "active" | "completed" | "cancelled";
+  route: { id: string; name: string };
+  booked_seats: number;
+  total_seats: number;
+  remaining_seats: number;
+}
+
+export interface PaginatedBuses {
+  data: BusListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedBusTrips {
+  data: BusTrip[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CreateBusPayload {
+  plate: string;
+  type: string;
+  capacity: number;
+  device_id?: string | null;
+  driver_id?: string | null;
+  route_ids?: string[];
+  org_id?: string;
+}
+
+export interface UpdateBusPayload {
+  plate?: string;
+  type?: string;
+  capacity?: number;
+  device_id?: string | null;
+  status?: "active" | "inactive";
+  driver_id?: string | null;
+  route_ids?: string[];
+}
+
+export interface TelemetryFix {
+  lat: number;
+  lon: number;
+  ts: string;
+}
+
+// ─── Bus Functions ───────────────────────────────────────────────────────────────
+
+export async function listBuses(params?: {
+  q?: string;
+  status?: "active" | "inactive";
+  driver_id?: string;
+  org_id?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedBuses> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.append("q", params.q);
+  if (params?.status) qs.append("status", params.status);
+  if (params?.driver_id) qs.append("driver_id", params.driver_id);
+  if (params?.org_id) qs.append("org_id", params.org_id);
+  if (params?.page) qs.append("page", String(params.page));
+  if (params?.limit) qs.append("limit", String(params.limit));
+
+  const res = await authFetch(`${API_BASE_URL}/buses?${qs}`);
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.json();
+}
+
+export async function getBus(id: string): Promise<BusDetail> {
+  const res = await authFetch(`${API_BASE_URL}/buses/${id}`);
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.json();
+}
+
+export async function createBus(payload: CreateBusPayload): Promise<BusDetail> {
+  const res = await authFetch(`${API_BASE_URL}/buses`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.json();
+}
+
+export async function updateBus(
+  id: string,
+  payload: UpdateBusPayload,
+): Promise<BusDetail> {
+  const res = await authFetch(`${API_BASE_URL}/buses/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.json();
+}
+
+export async function deleteBus(id: string): Promise<void> {
+  const res = await authFetch(`${API_BASE_URL}/buses/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
+}
+
+export async function listBusTrips(
+  id: string,
+  params?: { page?: number; limit?: number },
+): Promise<PaginatedBusTrips> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.append("page", String(params.page));
+  if (params?.limit) qs.append("limit", String(params.limit));
+
+  const res = await authFetch(`${API_BASE_URL}/buses/${id}/trips?${qs}`);
+  if (!res.ok) throw await parseErrorResponse(res);
+  return res.json();
+}
+
+// ─── Telemetry Functions ─────────────────────────────────────────────────────────
+
+export async function getBusLatestLocation(
+  busId: string,
+): Promise<TelemetryFix | null> {
+  const res = await fetch(`${TELEMETRY_URL}/buses/${busId}/location`);
+  if (res.status === 204) return null;
+  if (!res.ok) throw new Error(`Failed to get bus location: ${res.status}`);
+  return res.json();
+}
+
+export function subscribeToBusLocationStream(
+  busId: string,
+  onLocation: (location: TelemetryFix) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  let eventSource: EventSource | null = null;
+  try {
+    eventSource = new EventSource(`${TELEMETRY_URL}/buses/${busId}/stream`);
+
+    eventSource.addEventListener("message", (event) => {
+      try {
+        const location = JSON.parse(event.data as string) as TelemetryFix;
+        onLocation(location);
+      } catch (e) {
+        if (onError) onError(e instanceof Error ? e : new Error(String(e)));
+      }
+    });
+
+    eventSource.addEventListener("error", (event) => {
+      if (onError) onError(new Error("SSE connection error"));
+    });
+  } catch (e) {
+    if (onError) onError(e instanceof Error ? e : new Error(String(e)));
+  }
+
+  return () => {
+    if (eventSource) {
+      eventSource.close();
+    }
+  };
 }

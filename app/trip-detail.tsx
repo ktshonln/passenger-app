@@ -8,6 +8,11 @@ import { PaymentMethodSelector } from "@/components/trip/payment-method-selector
 import { RouteMap } from "@/components/trip/route-map";
 import { SeatCounter } from "@/components/trip/seat-counter";
 import { StopSelector } from "@/components/trip/stop-selector";
+import {
+  TelemetryFix,
+  getBusLatestLocation,
+  subscribeToBusLocationStream,
+} from "@/lib/api";
 import { usePaymentSSE } from "@/src/hooks/use-payment-sse";
 import { usePricing } from "@/src/hooks/use-pricing";
 import { useTicketBooking } from "@/src/hooks/use-ticket-booking";
@@ -40,6 +45,7 @@ export default function TripDetailScreen() {
   const { isAuthenticated, user, token } = useAuthStore();
   const verifyPassword = useAuthStore((s) => s.verifyPassword);
   const sseRef = useRef<{ close: () => void } | null>(null);
+  const busLocationSseRef = useRef<(() => void) | null>(null);
 
   // Fetch trip details
   const {
@@ -47,6 +53,9 @@ export default function TripDetailScreen() {
     loading: tripLoading,
     error: tripError,
   } = useTripDetail(params.tripId);
+
+  // Bus location state
+  const [busLocation, setBusLocation] = useState<TelemetryFix | null>(null);
 
   // Translation helper for bus types
   const getBusTypeLabel = (type: string) => {
@@ -89,16 +98,19 @@ export default function TripDetailScreen() {
   const countdownRef = useRef<any>(null);
 
   // Hooks
-  const { balance, loading: walletLoading, refetch: refetchWalletBalance } = useWallet();
+  const {
+    balance,
+    loading: walletLoading,
+    refetch: refetchWalletBalance,
+  } = useWallet();
 
   // Helper to get stops and origin/destination from new API structure
   const stops = trip?.stops
-    ? [...trip.stops]
-        .sort((a, b) => a.order - b.order)
-        .map((rs) => ({ ...rs }))
+    ? [...trip.stops].sort((a, b) => a.order - b.order).map((rs) => ({ ...rs }))
     : [];
   const origin = stops.length > 0 ? stops[0] : trip?.origin || null;
-  const destination = stops.length > 0 ? stops[stops.length - 1] : trip?.destination || null;
+  const destination =
+    stops.length > 0 ? stops[stops.length - 1] : trip?.destination || null;
   const company = trip?.company || {
     id: "KAT",
     name: "Katisha Transport",
@@ -189,8 +201,40 @@ export default function TripDetailScreen() {
         sseRef.current.close();
         sseRef.current = null;
       }
+      if (busLocationSseRef.current) {
+        busLocationSseRef.current();
+        busLocationSseRef.current = null;
+      }
     };
   }, []);
+
+  // Subscribe to bus location stream when trip and bus are available
+  useEffect(() => {
+    if (trip?.bus?.id) {
+      // First fetch latest location
+      getBusLatestLocation(trip.bus.id)
+        .then(setBusLocation)
+        .catch((err) => {
+          console.warn("Failed to get initial bus location:", err);
+        });
+
+      // Then subscribe to live stream
+      busLocationSseRef.current = subscribeToBusLocationStream(
+        trip.bus.id,
+        setBusLocation,
+        (err) => {
+          console.warn("Bus location stream error:", err);
+        },
+      );
+    }
+
+    return () => {
+      if (busLocationSseRef.current) {
+        busLocationSseRef.current();
+        busLocationSseRef.current = null;
+      }
+    };
+  }, [trip?.bus?.id]);
 
   // Handle payment status updates
   useEffect(() => {
@@ -213,6 +257,13 @@ export default function TripDetailScreen() {
 
       setShowMomoModal(false);
       // Navigate to success page with full ticket data from SSE
+      // Get selected boarding and alighting stops
+      const selectedBoardingStop = trip.stops.find(
+        (stop) => stop.id === boardingStopId,
+      );
+      const selectedAlightingStop = trip.stops.find(
+        (stop) => stop.id === alightingStopId,
+      );
       router.push({
         pathname: "/booking-success" as never,
         params: {
@@ -220,8 +271,16 @@ export default function TripDetailScreen() {
             id: paymentStatus.ticket.id,
             trip: {
               id: trip.id,
-              from: origin,
-              to: destination,
+              from: {
+                ...(selectedBoardingStop || origin),
+                lat: selectedBoardingStop?.lat ?? origin?.lat ?? 0,
+                lng: selectedBoardingStop?.lng ?? origin?.lng ?? 0,
+              },
+              to: {
+                ...(selectedAlightingStop || destination),
+                lat: selectedAlightingStop?.lat ?? destination?.lat ?? 0,
+                lng: selectedAlightingStop?.lng ?? destination?.lng ?? 0,
+              },
               departureTime: trip.departure_at,
               arrivalTime: trip.departure_at,
               duration: "2h 30m",
@@ -231,6 +290,7 @@ export default function TripDetailScreen() {
               currency: trip.currency,
               seatsAvailable: trip.available_seats,
               busType: getBusTypeLabel(trip.bus.type),
+              bus: trip.bus,
             },
             passenger: {
               fullName:
@@ -251,7 +311,9 @@ export default function TripDetailScreen() {
             bookedAt: new Date().toISOString(),
             totalPaid: paymentStatus.ticket.amount || totalPrice,
             currency: trip.currency,
-            issuedBy: user?.first_name ? `${user.first_name} ${user.last_name}` : undefined,
+            issuedBy: user?.first_name
+              ? `${user.first_name} ${user.last_name}`
+              : undefined,
           }),
         },
       });
@@ -388,23 +450,23 @@ export default function TripDetailScreen() {
     setShowWalletModal(false);
     setWalletPassword("");
 
-    const response = await book({
-      trip_id: trip.id,
-      boarding_stop_id: boardingStopId,
-      alighting_stop_id: alightingStopId,
-      seats_count: seatsCount,
-      payment_method: "wallet",
-    }, sudoToken);
+    const response = await book(
+      {
+        trip_id: trip.id,
+        boarding_stop_id: boardingStopId,
+        alighting_stop_id: alightingStopId,
+        seats_count: seatsCount,
+        payment_method: "wallet",
+      },
+      sudoToken,
+    );
 
     if (response?.ticket_id) {
       // Use SSE stream to wait for confirmation
       setPendingTicketId(response.ticket_id);
       setShowMomoModal(true);
     } else if (bookingError) {
-      Alert.alert(
-        t("payment.error", "Payment Failed"),
-        bookingError,
-      );
+      Alert.alert(t("payment.error", "Payment Failed"), bookingError);
     }
   };
 
@@ -743,6 +805,7 @@ export default function TripDetailScreen() {
               }))}
               boardingStopId={boardingStopId}
               alightingStopId={alightingStopId}
+              busLocation={busLocation}
               height={240}
             />
           </View>
@@ -1222,7 +1285,10 @@ export default function TripDetailScreen() {
                       <ActivityIndicator size="large" color="#0A4370" />
                       {paymentMethod === "wallet" ? (
                         <Text style={styles.waitingTitle}>
-                          {t("payment.waitingConfirmation", "Waiting for payment confirmation...")}
+                          {t(
+                            "payment.waitingConfirmation",
+                            "Waiting for payment confirmation...",
+                          )}
                         </Text>
                       ) : (
                         <>
@@ -1230,7 +1296,10 @@ export default function TripDetailScreen() {
                             {t("payment.enterPin", "Enter your PIN to confirm")}
                           </Text>
                           <Text style={styles.waitingPhone}>
-                            {t("payment.maskedPhone", "Payment request sent to")}
+                            {t(
+                              "payment.maskedPhone",
+                              "Payment request sent to",
+                            )}
                           </Text>
                           <Text style={styles.waitingPhoneNumber}>
                             {maskPhone(guestPhone || user?.phone_number || "")}

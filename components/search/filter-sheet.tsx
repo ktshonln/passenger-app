@@ -63,7 +63,7 @@ function CompanyChip({
           onError={() => setImgError(true)}
         />
       ) : (
-        <Text style={{ fontSize: 14 }}>{company.name[0]}</Text>
+        <Text style={{ fontSize: 14 }}>🚗</Text>
       )}
       <Text style={[S.filterChipText, selected && S.filterChipTextActive]}>
         {company.shortName}

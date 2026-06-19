@@ -390,7 +390,9 @@ export default function WalletScreen() {
               <Ionicons name="arrow-back" size={22} color="#fff" />
             </TouchableOpacity>
             <Text style={S.hTitle}>{t("wallet.title")}</Text>
-            <View style={{ width: 40 }} />
+            <TouchableOpacity style={S.backBtn} onPress={() => refetch()}>
+              <Ionicons name="refresh-outline" size={22} color="#fff" />
+            </TouchableOpacity>
           </View>
           <View style={S.balBlock}>
             <Text style={S.balLabel}>{t("wallet.currentBalance")}</Text>

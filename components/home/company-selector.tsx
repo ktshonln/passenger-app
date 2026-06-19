@@ -59,7 +59,7 @@ function CompanyChip({
           { transform: [{ scale }] },
         ]}
       >
-        <Text style={styles.chipLogo}>{company.logoUrl}</Text>
+        <Text style={styles.chipLogo}>🚗</Text>
         <View style={{ flex: 1 }}>
           <Text
             style={[styles.chipName, selected && { color: "#fff" }]}

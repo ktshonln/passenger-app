@@ -2,9 +2,10 @@
  * RouteMap — OpenStreetMap via Leaflet in a WebView.
  * Shows the full route line, all stops as markers, and highlights
  * the selected boarding (blue) and alighting (green) stops.
+ * Also supports live bus tracking via telemetry service.
  */
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import WebView from "react-native-webview";
 
@@ -16,6 +17,12 @@ export interface MapStop {
   order?: number;
 }
 
+export interface BusLocation {
+  lat: number;
+  lon: number;
+  ts: string;
+}
+
 interface Props {
   origin: MapStop;
   destination: MapStop;
@@ -23,6 +30,7 @@ interface Props {
   boardingStopId?: string | null;
   alightingStopId?: string | null;
   height?: number;
+  busLocation?: BusLocation | null;
 }
 
 export function RouteMap({
@@ -31,14 +39,30 @@ export function RouteMap({
   stops = [],
   boardingStopId,
   alightingStopId,
-  height = 220,
+  height = 250,
+  busLocation = null,
 }: Props) {
-  const html = useMemo(() => {
+  const webViewRef = useRef<WebView>(null);
+
+  // Fallback to Kigali coordinates if lat/lng are 0
+  const safeOrigin = {
+    ...origin,
+    lat: origin.lat !== 0 ? origin.lat : -1.9441,
+    lng: origin.lng !== 0 ? origin.lng : 30.0619,
+  };
+
+  const safeDestination = {
+    ...destination,
+    lat: destination.lat !== 0 ? destination.lat : -1.9561,
+    lng: destination.lng !== 0 ? destination.lng : 30.1039,
+  };
+
+  const baseHtml = useMemo(() => {
     // Build ordered list: origin → intermediate stops → destination
     const allStops: MapStop[] =
       stops.length >= 2
         ? stops
-        : [origin, ...stops, destination].filter(
+        : [safeOrigin, ...stops, safeDestination].filter(
             (s, i, arr) => arr.findIndex((x) => x.id === s.id) === i,
           );
 
@@ -52,8 +76,8 @@ export function RouteMap({
     const markers = allStops.map((s) => {
       const isBoarding = s.id === boardingStopId;
       const isAlighting = s.id === alightingStopId;
-      const isOrigin = s.id === origin.id && !boardingStopId;
-      const isDest = s.id === destination.id && !alightingStopId;
+      const isOrigin = s.id === safeOrigin.id && !boardingStopId;
+      const isDest = s.id === safeDestination.id && !alightingStopId;
 
       let color = "#6A717D";
       let size = 10;
@@ -110,6 +134,14 @@ export function RouteMap({
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       font-size: 10px; color: #fff; font-weight: 800;
     }
+    .bus-marker {
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; border: 3px solid #fff;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+      background: #F56565;
+      width: 28px; height: 28px;
+      font-size: 16px;
+    }
     .stop-label {
       background: white; border: 1.5px solid #CBD5E0; border-radius: 6px;
       padding: 2px 6px; font-size: 10px; font-weight: 700; color: #1A202C;
@@ -141,6 +173,26 @@ export function RouteMap({
       .addTo(map)
       .bindPopup('<div class="stop-label">' + m.name + '</div>');
   });
+
+  // Bus marker (initially hidden)
+  var busMarker = null;
+  function updateBusLocation(lat, lon) {
+    var busIcon = L.divIcon({
+      className: '',
+      html: '<div class="bus-marker">🚌</div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      popupAnchor: [0, -14]
+    });
+
+    if (busMarker) {
+      busMarker.setLatLng([lat, lon]);
+    } else {
+      busMarker = L.marker([lat, lon], { icon: busIcon, zIndexOffset: 1000 })
+        .addTo(map)
+        .bindPopup('<div class="stop-label">Bus</div>');
+    }
+  }
 
   // Fetch actual road route from OSRM
   var coords = ${JSON.stringify(polyline)};
@@ -174,12 +226,21 @@ export function RouteMap({
 </script>
 </body>
 </html>`;
-  }, [origin, destination, stops, boardingStopId, alightingStopId]);
+  }, [safeOrigin, safeDestination, stops, boardingStopId, alightingStopId]);
+
+  // Update bus location when prop changes
+  useEffect(() => {
+    if (webViewRef.current && busLocation) {
+      const js = `updateBusLocation(${busLocation.lat}, ${busLocation.lon}); true;`;
+      webViewRef.current.injectJavaScript(js);
+    }
+  }, [busLocation]);
 
   return (
     <View style={[styles.container, { height }]}>
       <WebView
-        source={{ html }}
+        ref={webViewRef}
+        source={{ html: baseHtml }}
         style={styles.webview}
         scrollEnabled={false}
         javaScriptEnabled

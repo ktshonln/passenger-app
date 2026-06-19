@@ -562,9 +562,7 @@ function UniversalSearch({
                           resizeMode="contain"
                         />
                       ) : (
-                        <Text style={{ fontSize: 22 }}>
-                          {company.logoUrl || "🚌"}
-                        </Text>
+                        <Text style={{ fontSize: 22 }}>🚗</Text>
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
@@ -1170,7 +1168,7 @@ function CompanyCard({
             resizeMode="contain"
           />
         ) : (
-          <Text style={{ fontSize: 26 }}>{company.logoUrl || "🚌"}</Text>
+          <Text style={{ fontSize: 26 }}>🚗</Text>
         )}
       </View>
       <Text style={S.companyName} numberOfLines={1}>
@@ -1485,72 +1483,6 @@ export default function HomeScreen() {
 
           {/* How it works */}
           <HowItWorksSection t={t} />
-
-          {/* ── DEMO: Print Ticket Preview ── */}
-          <View style={S.demoCard}>
-            <View style={S.demoBadge}>
-              <Ionicons name="flask-outline" size={12} color="#805AD5" />
-              <Text style={S.demoBadgeText}>DEMO</Text>
-            </View>
-            <Text style={S.demoTitle}>Test Print Ticket</Text>
-            <Text style={S.demoDesc}>
-              Preview the booking success screen with a sample ticket and test
-              the print flow.
-            </Text>
-            <TouchableOpacity
-              style={S.demoBtn}
-              activeOpacity={0.85}
-              onPress={() =>
-                router.push({
-                  pathname: "/booking-success" as never,
-                  params: {
-                    booking: JSON.stringify({
-                      id: "demo-ticket-001",
-                      bookingRef: "KAT-2026",
-                      seatNumber: "12A",
-                      status: "confirmed",
-                      bookedAt: new Date().toISOString(),
-                      totalPaid: 3500,
-                      currency: "RWF",
-                      paymentMethod: "wallet",
-                      trip: {
-                        id: "t1",
-                        from: {
-                          id: "l1",
-                          name: "Kigali Bus Terminal",
-                          city: "Kigali",
-                          code: "KGL",
-                        },
-                        to: {
-                          id: "l3",
-                          name: "Musanze Bus Park",
-                          city: "Musanze",
-                          code: "MSZ",
-                        },
-                        departureTime: "2026-04-06T06:00:00",
-                        arrivalTime: "2026-04-06T08:30:00",
-                        duration: "2h 30m",
-                        operator: "Volcano Express",
-                        operatorId: "c1",
-                        price: 3500,
-                        currency: "RWF",
-                        seatsAvailable: 14,
-                        busType: "Luxury Coach",
-                      },
-                      passenger: {
-                        fullName: "Kalisa Nkusi",
-                        phone: "+250788***456",
-                        email: "kalisa@example.com",
-                      },
-                    }),
-                  },
-                })
-              }
-            >
-              <Ionicons name="print-outline" size={16} color="#fff" />
-              <Text style={S.demoBtnText}>Open Demo Success Screen</Text>
-            </TouchableOpacity>
-          </View>
         </Animated.View>
       </ScrollView>
     </View>
@@ -2413,59 +2345,6 @@ const S = StyleSheet.create({
     color: "#6A717D",
     textAlign: "center",
     lineHeight: 14,
-  },
-
-  // ── Demo card ──────────────────────────────────────────────────────────────
-  demoCard: {
-    marginTop: 28,
-    backgroundColor: "#FAF5FF",
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1.5,
-    borderColor: "#D6BCFA",
-    borderStyle: "dashed",
-    gap: 8,
-  },
-  demoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    alignSelf: "flex-start",
-    backgroundColor: "#EDE9FE",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  demoBadgeText: {
-    fontSize: 10,
-    fontWeight: "900",
-    color: "#805AD5",
-    letterSpacing: 1,
-  },
-  demoTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#1A202C",
-  },
-  demoDesc: {
-    fontSize: 12,
-    color: "#6A717D",
-    lineHeight: 17,
-  },
-  demoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#805AD5",
-    borderRadius: 12,
-    paddingVertical: 12,
-    marginTop: 4,
-  },
-  demoBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#fff",
   },
 
   // Route suggestion card in search modal

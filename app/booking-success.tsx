@@ -1,10 +1,16 @@
 import { PrintTicketButton } from "@/components/ticket/PrintTicketButton";
+import { RouteMap } from "@/components/trip/route-map";
 import { AppBar } from "@/components/ui/app-bar";
 import { useBookings } from "@/hooks/use-bookings";
-import { Booking } from "@/lib/api";
+import {
+  Booking,
+  TelemetryFix,
+  getBusLatestLocation,
+  subscribeToBusLocationStream,
+} from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Animated,
@@ -62,6 +68,9 @@ export default function BookingSuccessScreen() {
   const booking: Booking = JSON.parse(params.booking ?? "{}");
   const fromMyTrips = params.fromMyTrips === "true";
   const { addBooking } = useBookings();
+  const [busLocation, setBusLocation] = useState<TelemetryFix | null>(null);
+  const busLocationSseRef = useRef<(() => void) | null>(null);
+  const [showBusMap, setShowBusMap] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(0.6)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -90,6 +99,35 @@ export default function BookingSuccessScreen() {
     ]).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (showBusMap && booking?.trip?.bus?.id) {
+      getBusLatestLocation(booking.trip.bus.id)
+        .then(setBusLocation)
+        .catch((err) => {
+          console.warn("Failed to get initial bus location:", err);
+        });
+      busLocationSseRef.current = subscribeToBusLocationStream(
+        booking.trip.bus.id,
+        setBusLocation,
+        (err) => {
+          console.warn("Bus location stream error:", err);
+        },
+      );
+    } else {
+      if (busLocationSseRef.current) {
+        busLocationSseRef.current();
+        busLocationSseRef.current = null;
+      }
+      setBusLocation(null);
+    }
+
+    return () => {
+      if (busLocationSseRef.current) {
+        busLocationSseRef.current();
+      }
+    };
+  }, [showBusMap, booking?.trip?.bus?.id]);
 
   function formatTime(iso: string) {
     if (!iso) return "";
@@ -208,6 +246,47 @@ export default function BookingSuccessScreen() {
               value={formatDate(booking.bookedAt)}
             />
           </SectionCard>
+
+          {/* Live Bus Tracking Button */}
+          {booking.trip?.bus && (
+            <TouchableOpacity
+              className="bg-primary rounded-2xl h-[54px] items-center justify-center mb-3 flex-row gap-2"
+              onPress={() => setShowBusMap(!showBusMap)}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={showBusMap ? "eye-off-outline" : "eye-outline"}
+                size={17}
+                color="#FFFFFF"
+              />
+              <Text className="text-white text-[15px] font-bold">
+                {showBusMap ? "Hide Live Bus Map" : "Show Live Bus Map"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Live Bus Tracking Map */}
+          {showBusMap && booking.trip?.bus && (
+            <SectionCard title={t("trip.routeMap", "Live Bus Tracking")}>
+              <RouteMap
+                origin={{
+                  id: booking.trip?.from?.id ?? "",
+                  name:
+                    booking.trip?.from?.city ?? booking.trip?.from?.name ?? "",
+                  lat: booking.trip?.from?.lat ?? 0,
+                  lng: booking.trip?.from?.lng ?? 0,
+                }}
+                destination={{
+                  id: booking.trip?.to?.id ?? "",
+                  name: booking.trip?.to?.city ?? booking.trip?.to?.name ?? "",
+                  lat: booking.trip?.to?.lat ?? 0,
+                  lng: booking.trip?.to?.lng ?? 0,
+                }}
+                height={250}
+                busLocation={busLocation}
+              />
+            </SectionCard>
+          )}
 
           <SectionCard title={t("bookingSuccess.passenger")}>
             <InfoRow

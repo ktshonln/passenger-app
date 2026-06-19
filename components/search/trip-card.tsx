@@ -9,7 +9,7 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.katisha.online";
 
 /** Returns a usable image URL or null (use fallback). */
-export function resolveLogoUrl(path: string | undefined): string | null {
+export function resolveLogoUrl(path: string | null | undefined): string | null {
   if (!path || path.trim() === "") return null;
   // Emoji detection: if the string contains no ASCII letters/digits it's an emoji
   if (!/[a-zA-Z0-9/._-]/.test(path)) return null;
@@ -37,21 +37,25 @@ interface TripCardProps {
 
 export function TripCard({ trip, company, onBook, t }: TripCardProps) {
   const [imgError, setImgError] = useState(false);
-  const tripCompanyLogoPath = trip.company && "logo_path" in trip.company 
-    ? trip.company.logo_path 
-    : undefined;
+  const tripCompanyLogoPath =
+    trip.company && "logo_path" in trip.company
+      ? trip.company.logo_path
+      : undefined;
   const logoUrl = resolveLogoUrl(company?.logo_path ?? tripCompanyLogoPath);
   const seatsLow = trip.available_seats <= 5;
 
   // Calculate duration if we have both times
-  const duration = trip.departure_at && trip.arrival_at
-    ? (() => {
-        const diff = new Date(trip.arrival_at).getTime() - new Date(trip.departure_at).getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        return `${hours}h ${minutes}m`;
-      })()
-    : "";
+  const duration =
+    trip.departure_at && trip.arrival_at
+      ? (() => {
+          const diff =
+            new Date(trip.arrival_at).getTime() -
+            new Date(trip.departure_at).getTime();
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          return `${hours}h ${minutes}m`;
+        })()
+      : "";
 
   return (
     <View style={S.card}>
@@ -67,9 +71,7 @@ export function TripCard({ trip, company, onBook, t }: TripCardProps) {
             />
           ) : (
             <View style={S.logoFallback}>
-              <Text style={S.logoLetter}>
-                {(company?.name ?? (trip.company as any)?.name ?? "?")[0]?.toUpperCase()}
-              </Text>
+              <Text style={S.logoLetter}>🚗</Text>
             </View>
           )}
           <View>
